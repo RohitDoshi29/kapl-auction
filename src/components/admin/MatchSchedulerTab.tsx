@@ -90,8 +90,23 @@ export default function MatchSchedulerTab({ onNavigateToSetup }: MatchSchedulerT
       }
     };
 
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key === `kapl_fixtures_${activeTournamentId}` && e.newValue) {
+        try {
+          const updatedFixtures = JSON.parse(e.newValue);
+          setFixtures(updatedFixtures);
+        } catch (err) {
+          console.warn('Failed to parse fixtures from storage event:', err);
+        }
+      }
+    };
+
     window.addEventListener('kapl-fixtures-updated', handleUpdate);
-    return () => window.removeEventListener('kapl-fixtures-updated', handleUpdate);
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('kapl-fixtures-updated', handleUpdate);
+      window.removeEventListener('storage', handleStorageUpdate);
+    };
   }, [activeTournamentId]);
 
   const resetForm = () => {
@@ -189,6 +204,11 @@ export default function MatchSchedulerTab({ onNavigateToSetup }: MatchSchedulerT
       setFixtures(updatedFixtures);
       await saveStoredFixtures(activeTournamentId, updatedFixtures);
 
+      // Explicit broadcast to ensure cross-tab sync
+      window.dispatchEvent(new CustomEvent('kapl-fixtures-updated', {
+        detail: { tournamentId: activeTournamentId, fixtures: updatedFixtures }
+      }));
+
       setIsDialogOpen(false);
       resetForm();
     } catch (error) {
@@ -222,6 +242,12 @@ export default function MatchSchedulerTab({ onNavigateToSetup }: MatchSchedulerT
       const updatedFixtures = fixtures.filter((f) => f.id !== fixtureId);
       setFixtures(updatedFixtures);
       await saveStoredFixtures(activeTournamentId, updatedFixtures);
+
+      // Explicit broadcast to ensure cross-tab sync
+      window.dispatchEvent(new CustomEvent('kapl-fixtures-updated', {
+        detail: { tournamentId: activeTournamentId, fixtures: updatedFixtures }
+      }));
+
       toast.success('Match deleted from tournament schedule');
       logger.info('Match deleted', { matchId: fixtureId });
     } catch (error) {
@@ -234,6 +260,12 @@ export default function MatchSchedulerTab({ onNavigateToSetup }: MatchSchedulerT
     try {
       const defaults = await resetToDefaultFixtures(activeTournamentId);
       setFixtures(defaults);
+
+      // Explicit broadcast to ensure cross-tab sync
+      window.dispatchEvent(new CustomEvent('kapl-fixtures-updated', {
+        detail: { tournamentId: activeTournamentId, fixtures: defaults }
+      }));
+
       toast.success('Schedule reset to official KAPL default fixtures');
     } catch (err) {
       toast.error('Failed to reset schedule');

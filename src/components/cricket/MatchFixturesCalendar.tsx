@@ -45,8 +45,23 @@ export function MatchFixturesCalendar({
       }
     };
 
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key === `kapl_fixtures_${activeTournamentId}` && e.newValue) {
+        try {
+          const updatedFixtures = JSON.parse(e.newValue);
+          setFixtures(updatedFixtures);
+        } catch (err) {
+          console.warn('Failed to parse fixtures from storage event:', err);
+        }
+      }
+    };
+
     window.addEventListener('kapl-fixtures-updated', handleUpdate);
-    return () => window.removeEventListener('kapl-fixtures-updated', handleUpdate);
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('kapl-fixtures-updated', handleUpdate);
+      window.removeEventListener('storage', handleStorageUpdate);
+    };
   }, [activeTournamentId]);
 
   // Extract unique days
