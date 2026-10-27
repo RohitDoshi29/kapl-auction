@@ -190,49 +190,49 @@ export default function PlayerStatsTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Player</TableHead>
-                  <TableHead>Team</TableHead>
-                  <TableHead className="text-center">M</TableHead>
-                  <TableHead className="text-center">Runs</TableHead>
-                  <TableHead className="text-center">Balls</TableHead>
-                  <TableHead className="text-center">4s</TableHead>
-                  <TableHead className="text-center">6s</TableHead>
-                  <TableHead className="text-center">Avg</TableHead>
-                  <TableHead className="text-center">SR</TableHead>
+                  <TableHead className="text-xs md:text-sm">Player</TableHead>
+                  <TableHead className="text-xs md:text-sm hidden sm:table-cell">Team</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">M</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">Runs</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm hidden sm:table-cell">Balls</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm hidden sm:table-cell">4s</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm hidden sm:table-cell">6s</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">Avg</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">SR</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {allPlayers.map((player) => (
                   <TableRow key={player.playerId}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
+                    <TableCell className="text-xs md:text-sm">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8 md:h-10 md:w-10">
                           <AvatarImage src={player.playerPhoto || undefined} alt={player.playerName} />
-                          <AvatarFallback 
+                          <AvatarFallback
                             style={{ backgroundColor: `hsl(${player.teamColor})` }}
-                            className="text-white font-medium"
+                            className="text-white font-medium text-xs"
                           >
                             {player.playerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{player.playerName}</span>
+                        <span className="font-medium line-clamp-1">{player.playerName}</span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <span 
+                    <TableCell className="text-xs hidden sm:table-cell">
+                      <span
                         className="px-2 py-1 rounded text-xs font-medium text-white"
                         style={{ backgroundColor: `hsl(${player.teamColor})` }}
                       >
                         {player.teamName}
                       </span>
                     </TableCell>
-                    <TableCell className="text-center">{player.matchesPlayed}</TableCell>
-                    <TableCell className="text-center font-bold">{player.runsScored}</TableCell>
-                    <TableCell className="text-center">{player.ballsFaced}</TableCell>
-                    <TableCell className="text-center">{player.fours}</TableCell>
-                    <TableCell className="text-center">{player.sixes}</TableCell>
-                    <TableCell className="text-center">{getBattingAverage(player.runsScored, player.timesOut)}</TableCell>
-                    <TableCell className="text-center">{getStrikeRate(player.runsScored, player.ballsFaced)}</TableCell>
+                    <TableCell className="text-center text-xs md:text-sm font-semibold">{player.matchesPlayed}</TableCell>
+                    <TableCell className="text-center text-xs md:text-sm font-bold text-primary">{player.runsScored}</TableCell>
+                    <TableCell className="text-center text-xs hidden sm:table-cell">{player.ballsFaced}</TableCell>
+                    <TableCell className="text-center text-xs hidden sm:table-cell">{player.fours}</TableCell>
+                    <TableCell className="text-center text-xs hidden sm:table-cell">{player.sixes}</TableCell>
+                    <TableCell className="text-center text-xs md:text-sm font-semibold">{getBattingAverage(player.runsScored, player.timesOut)}</TableCell>
+                    <TableCell className="text-center text-xs md:text-sm font-semibold">{getStrikeRate(player.runsScored, player.ballsFaced)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -251,16 +251,16 @@ export default function PlayerStatsTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Player</TableHead>
-                  <TableHead>Team</TableHead>
-                  <TableHead className="text-center">M</TableHead>
-                  <TableHead className="text-center">Overs</TableHead>
-                  <TableHead className="text-center">Runs</TableHead>
-                  <TableHead className="text-center">Wkts</TableHead>
-                  <TableHead className="text-center">Wides</TableHead>
-                  <TableHead className="text-center">NB</TableHead>
-                  <TableHead className="text-center">Avg</TableHead>
-                  <TableHead className="text-center">Econ</TableHead>
+                  <TableHead className="text-xs md:text-sm">Player</TableHead>
+                  <TableHead className="text-xs md:text-sm hidden sm:table-cell">Team</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">M</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">Overs</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">Runs</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">Wkts</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm hidden sm:table-cell">Wides</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm hidden sm:table-cell">NB</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">Avg</TableHead>
+                  <TableHead className="text-center text-xs md:text-sm">Econ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -269,36 +269,36 @@ export default function PlayerStatsTab() {
                   .sort((a, b) => b.wicketsTaken - a.wicketsTaken)
                   .map((player) => (
                     <TableRow key={player.playerId}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10">
+                      <TableCell className="text-xs md:text-sm">
+                        <div className="flex items-center gap-2">
+                          <Avatar className="h-8 w-8 md:h-10 md:w-10">
                             <AvatarImage src={player.playerPhoto || undefined} alt={player.playerName} />
-                            <AvatarFallback 
+                            <AvatarFallback
                               style={{ backgroundColor: `hsl(${player.teamColor})` }}
-                              className="text-white font-medium"
+                              className="text-white font-medium text-xs"
                             >
                               {player.playerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                             </AvatarFallback>
                           </Avatar>
-                          <span className="font-medium">{player.playerName}</span>
+                          <span className="font-medium line-clamp-1">{player.playerName}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <span 
+                      <TableCell className="text-xs hidden sm:table-cell">
+                        <span
                           className="px-2 py-1 rounded text-xs font-medium text-white"
                           style={{ backgroundColor: `hsl(${player.teamColor})` }}
                         >
                           {player.teamName}
                         </span>
                       </TableCell>
-                      <TableCell className="text-center">{player.matchesPlayed}</TableCell>
-                      <TableCell className="text-center">{formatOvers(player.oversBowled, player.ballsBowled)}</TableCell>
-                      <TableCell className="text-center">{player.runsGiven}</TableCell>
-                      <TableCell className="text-center font-bold">{player.wicketsTaken}</TableCell>
-                      <TableCell className="text-center">{player.wides}</TableCell>
-                      <TableCell className="text-center">{player.noBalls}</TableCell>
-                      <TableCell className="text-center">{getBowlingAverage(player.runsGiven, player.wicketsTaken)}</TableCell>
-                      <TableCell className="text-center">{getBowlingEconomy(player.runsGiven, player.oversBowled, player.ballsBowled)}</TableCell>
+                      <TableCell className="text-center text-xs md:text-sm font-semibold">{player.matchesPlayed}</TableCell>
+                      <TableCell className="text-center text-xs md:text-sm">{formatOvers(player.oversBowled, player.ballsBowled)}</TableCell>
+                      <TableCell className="text-center text-xs md:text-sm">{player.runsGiven}</TableCell>
+                      <TableCell className="text-center text-xs md:text-sm font-bold text-primary">{player.wicketsTaken}</TableCell>
+                      <TableCell className="text-center text-xs hidden sm:table-cell">{player.wides}</TableCell>
+                      <TableCell className="text-center text-xs hidden sm:table-cell">{player.noBalls}</TableCell>
+                      <TableCell className="text-center text-xs md:text-sm font-semibold">{getBowlingAverage(player.runsGiven, player.wicketsTaken)}</TableCell>
+                      <TableCell className="text-center text-xs md:text-sm font-semibold">{getBowlingEconomy(player.runsGiven, player.oversBowled, player.ballsBowled)}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>

@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Trophy, Medal, Award, Sparkles } from 'lucide-react';
 import { TournamentCeremonyModal } from '@/components/cricket/TournamentCeremonyModal';
+import { TournamentBracket } from '@/components/cricket/TournamentBracket';
 import { useTournamentHonors } from '@/hooks/useTournamentHonors';
 
 interface TournamentState {
@@ -132,6 +133,27 @@ export function AdminTournamentTab() {
 
   return (
     <div className="space-y-6">
+      {/* Tournament Bracket Visualization */}
+      <Card className="border-amber-500/30 bg-gradient-to-br from-amber-500/5 to-transparent">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            Tournament Bracket
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <TournamentBracket
+            a1={tournamentState?.qualified_a1 ? { name: getTeamName(tournamentState.qualified_a1) } : undefined}
+            a2={tournamentState?.qualified_a2 ? { name: getTeamName(tournamentState.qualified_a2) } : undefined}
+            b1={tournamentState?.qualified_b1 ? { name: getTeamName(tournamentState.qualified_b1) } : undefined}
+            b2={tournamentState?.qualified_b2 ? { name: getTeamName(tournamentState.qualified_b2) } : undefined}
+            sf1Winner={tournamentState?.sf1_winner ? { name: getTeamName(tournamentState.sf1_winner) } : undefined}
+            sf2Winner={tournamentState?.sf2_winner ? { name: getTeamName(tournamentState.sf2_winner) } : undefined}
+            finalWinner={tournamentState?.final_winner ? { name: getTeamName(tournamentState.final_winner) } : undefined}
+          />
+        </CardContent>
+      </Card>
+
       {/* Group Qualifiers */}
       <div className="grid md:grid-cols-2 gap-4">
         <Card>
