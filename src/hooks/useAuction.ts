@@ -268,6 +268,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
   useEffect(() => {
     if (initialTournamentId !== tournamentId) {
+      console.log('🔄 Tournament changed from', tournamentId, 'to', initialTournamentId);
       setTournamentId(initialTournamentId);
     }
   }, [initialTournamentId, tournamentId]);
@@ -275,6 +276,8 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
   // Fetch initial data
   const fetchData = useCallback(async () => {
     try {
+      console.log('🎯 fetchData called for tournament:', tournamentId);
+      setIsLoading(true);
       // 1. Fetch auction state for this tournament
       const { data: stateData, error: stateError } = await supabase
         .from('auction_state')
@@ -303,11 +306,13 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       }
 
       // 2. Fetch non-legacy players from Supabase (public safe columns)
+      console.log('👥 Fetching players for tournament:', tournamentId);
       const { data: allPlayers, error: playersError } = await supabase
         .from('players')
         .select('id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status, mobile_number')
         .order('name');
 
+      console.log('✅ Fetched total players from DB:', allPlayers?.length || 0);
       if (playersError) throw playersError;
 
       let mappedPlayers: PlayerRecord[] = (allPlayers || [])
@@ -467,12 +472,14 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       }
 
       // 3. Fetch teams for this tournament
+      console.log('📋 Fetching teams for tournament:', tournamentId);
       const { data: teamsData, error: teamsError } = await supabase
         .from('teams')
         .select('*')
         .eq('tournament_id', tournamentId)
         .order('name');
 
+      console.log('✅ Fetched teams:', teamsData?.length || 0, 'teams for', tournamentId);
       if (teamsError) throw teamsError;
 
       let metaMap: Record<string, any> = {};
@@ -540,11 +547,13 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           };
         });
 
+        console.log('✅ Setting teams from DB:', mappedTeams.length, 'teams');
         setTeams(mappedTeams);
         try {
           localStorage.setItem(`kapl_auction_teams_${tournamentId}`, JSON.stringify(mappedTeams));
         } catch {}
       } else {
+        console.log('⚠️ No teams from DB, using fallback for', tournamentId);
         const fallback = tournamentId === 'kapl-3-womens' ? DEFAULT_WOMENS_TEAMS : DEFAULT_TEAMS;
         const mappedTeams: Team[] = fallback.map((t) => {
           const meta = metaMap[t.id] || {};
@@ -584,12 +593,14 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
             captainPlayerId: meta.captainPlayerId || t.captainPlayerId || (teamPlayers[0]?.id || null),
           };
         });
+        console.log('✅ Setting fallback teams:', mappedTeams.length, 'teams for', tournamentId);
         setTeams(mappedTeams);
         try {
           localStorage.setItem(`kapl_auction_teams_${tournamentId}`, JSON.stringify(mappedTeams));
         } catch {}
       }
 
+      console.log('🎯 Fetch complete for tournament:', tournamentId, 'players:', mappedPlayers.length);
       // 4. Load sales history from DB with fallback to localStorage
       try {
         const { data: bidsData } = await supabase
