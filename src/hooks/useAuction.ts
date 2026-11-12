@@ -321,7 +321,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         .map((p: any) => ({
           id: p.id,
           userId: p.user_id || undefined,
-          tournamentId: tournamentId,
+          tournamentId: p.tournament_id || tournamentId,
           teamId: p.team_id,
           name: p.name,
           role: (p.role as PlayerRole) || 'all_rounder',
