@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { PlayerRecord, PlayerRole } from '@/lib/cricketTypes';
 import { supabase } from '@/integrations/supabase/client';
 import { saveToPlayerVault } from '@/lib/exportRegistrations';
-import { syncPlayerToAuctionAndTournament } from '@/contexts/AuthContext';
+import { syncPlayerToAuctionAndTournament, useAuth } from '@/contexts/AuthContext';
 import { validatePlayerInput } from '@/lib/schemas';
 import { useRequestQueue } from '@/hooks/useRequestQueue';
 import { logger } from '@/lib/logger';
@@ -56,6 +56,7 @@ export function AddPlayerModal({
   onPlayerAdded,
   onAddPlayer,
 }: AddPlayerModalProps) {
+  const { isAdmin } = useAuth();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const isOpen = isControlled ? controlledOpen : internalOpen;
@@ -95,6 +96,11 @@ export function AddPlayerModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!isAdmin) {
+      toast.error('Only administrators can add new players.');
+      return;
+    }
 
     if (isPending('add-player')) {
       toast.error('Player is already being added. Please wait...');
@@ -212,6 +218,10 @@ export function AddPlayerModal({
     }
   };
 
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       {trigger ? (
@@ -220,7 +230,7 @@ export function AddPlayerModal({
         <DialogTrigger asChild>
           <Button
             size="sm"
-            className="h-8.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black text-xs gap-1.5 shadow-md shadow-amber-500/20 touch-manipulation"
+            className="min-h-[44px] sm:min-h-0 sm:h-9 px-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black text-xs gap-1.5 shadow-md shadow-amber-500/20 touch-manipulation"
           >
             <UserPlus className="w-3.5 h-3.5" />
             <span>+ Add Player to Auction</span>
@@ -412,13 +422,13 @@ export function AddPlayerModal({
           </div>
 
           {/* Action CTAs */}
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/[0.08]">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-white/[0.08]">
             <Button
               type="button"
               variant="ghost"
               onClick={() => setIsOpen(false)}
               disabled={isSubmitting}
-              className="h-10 px-4 text-xs font-semibold rounded-xl"
+              className="min-h-[44px] sm:min-h-0 sm:h-10 px-4 text-xs font-semibold rounded-xl"
             >
               Cancel
             </Button>
@@ -426,7 +436,7 @@ export function AddPlayerModal({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="h-10 px-5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black text-xs sm:text-sm gap-2 shadow-lg shadow-amber-500/25"
+              className="min-h-[44px] sm:min-h-0 sm:h-10 px-5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black text-xs sm:text-sm gap-2 shadow-lg shadow-amber-500/25"
             >
               {isSubmitting ? (
                 <span>Adding to Auction...</span>

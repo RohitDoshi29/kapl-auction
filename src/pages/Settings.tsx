@@ -772,19 +772,19 @@ export default function Settings() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
             <Button
               variant="outline"
               size="sm"
               onClick={fetchAllTeams}
               disabled={loadingTeams}
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs min-h-[44px] sm:min-h-0 sm:h-9 flex-1 sm:flex-none justify-center"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingTeams ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Link to="/">
-              <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+            <Link to="/" className="flex-1 sm:flex-none">
+              <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs min-h-[44px] sm:min-h-0 sm:h-9 justify-center">
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Back to Auction
               </Button>
@@ -798,18 +798,18 @@ export default function Settings() {
           onValueChange={(v) => setActiveTab(v as 'roles' | 'owners' | 'basic')}
           className="space-y-4"
         >
-          <TabsList className="grid w-full grid-cols-3 bg-white/[0.04] border border-white/10 rounded-2xl p-1">
-            <TabsTrigger value="roles" className="gap-1.5 text-xs sm:text-sm font-bold rounded-xl min-h-[42px]">
+          <TabsList className="flex w-full items-center justify-start sm:grid sm:grid-cols-3 gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-white/[0.04] border border-white/10 rounded-2xl p-1">
+            <TabsTrigger value="roles" className="shrink-0 sm:shrink gap-1.5 text-xs sm:text-sm font-bold rounded-xl min-h-[44px] px-3 sm:px-2">
               <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
-              <span className="truncate">Co-Admin Roles</span>
+              <span>Co-Admin Roles</span>
             </TabsTrigger>
-            <TabsTrigger value="owners" className="gap-1.5 text-xs sm:text-sm font-bold rounded-xl min-h-[42px]">
+            <TabsTrigger value="owners" className="shrink-0 sm:shrink gap-1.5 text-xs sm:text-sm font-bold rounded-xl min-h-[44px] px-3 sm:px-2">
               <Crown className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="truncate">Team Owners</span>
+              <span>Team Owners</span>
             </TabsTrigger>
-            <TabsTrigger value="basic" className="gap-1.5 text-xs sm:text-sm font-bold rounded-xl min-h-[42px]">
+            <TabsTrigger value="basic" className="shrink-0 sm:shrink gap-1.5 text-xs sm:text-sm font-bold rounded-xl min-h-[44px] px-3 sm:px-2">
               <Sliders className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span className="truncate">Basic Settings</span>
+              <span>Basic Settings</span>
             </TabsTrigger>
           </TabsList>
 
@@ -908,10 +908,10 @@ export default function Settings() {
                           key={entry.id}
                           className="flex items-center justify-between gap-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]"
                         >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold text-sm truncate">{entry.name}</span>
-                              <Badge className="bg-purple-600/20 text-purple-300 border-purple-500/30 text-[10px]">
+                              <Badge className="bg-purple-600/20 text-purple-300 border-purple-500/30 text-[10px] shrink-0">
                                 {entry.title}
                               </Badge>
                             </div>
@@ -927,7 +927,7 @@ export default function Settings() {
                               variant="ghost"
                               size="icon"
                               onClick={() => handleRevokeCoAdmin(entry)}
-                              className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
+                              className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
                               title={`Revoke Co-Admin for ${entry.email}`}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -967,7 +967,7 @@ export default function Settings() {
                                 size="icon"
                                 disabled={isSavingOwner}
                                 onClick={() => handleDeleteRoleAssignment(rec)}
-                                className="h-6 w-6 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                                className="h-9 w-9 sm:h-7 sm:w-7 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
                                 title={`Delete ${rec.role} role for ${rec.email}`}
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1130,7 +1130,7 @@ export default function Settings() {
                         className="flex items-center gap-2.5 min-w-0 text-left flex-1"
                       >
                         <TeamBadge team={team} size="sm" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="font-bold text-sm truncate">{team.name}</p>
                           <p className="text-xs text-muted-foreground truncate">
                             {team.ownerName
@@ -1145,7 +1145,7 @@ export default function Settings() {
                           size="icon"
                           disabled={isSavingOwner}
                           onClick={() => handleRemoveTeamOwner(team)}
-                          className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
+                          className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
                           title={`Delete owner role for ${team.name}`}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1155,7 +1155,7 @@ export default function Settings() {
                           variant="outline"
                           size="sm"
                           onClick={() => setSelectedOwnerTeamId(team.id)}
-                          className="text-xs shrink-0"
+                          className="min-h-[40px] sm:min-h-0 text-xs shrink-0"
                         >
                           Assign
                         </Button>
@@ -1172,7 +1172,7 @@ export default function Settings() {
                           key={rec.email}
                           className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/20"
                         >
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="font-semibold text-xs truncate text-foreground">{rec.email}</p>
                             <p className="text-[11px] text-muted-foreground truncate">
                               {rec.teamName ? `${rec.teamName} • ` : ''}Owner Role
@@ -1183,7 +1183,7 @@ export default function Settings() {
                             size="icon"
                             disabled={isSavingOwner}
                             onClick={() => handleDeleteRoleAssignment(rec)}
-                            className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
+                            className="min-h-[44px] min-w-[44px] sm:min-h-9 sm:min-w-9 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 shrink-0"
                             title={`Delete owner role for ${rec.email}`}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1377,7 +1377,7 @@ export default function Settings() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="config-initial-purse">Starting Purse (₹)</Label>
                         <Input

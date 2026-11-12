@@ -72,7 +72,9 @@ export function CategoryPlayerGrid({
               key={cat.id}
               type="button"
               onClick={() => onSelectCategory(cat.id)}
-              className={`p-3 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between touch-manipulation ${
+              className={`p-3 rounded-2xl border text-left transition-all relative overflow-hidden flex flex-col justify-between touch-manipulation min-h-[84px] ${
+                cat.id === 'all' ? 'col-span-2 sm:col-span-1' : ''
+              } ${
                 isSelected
                   ? 'border-amber-400 bg-amber-500/15 ring-2 ring-amber-400/50 shadow-md shadow-amber-500/15'
                   : 'border-white/10 bg-card/85 backdrop-blur-md hover:bg-white/[0.06] hover:border-white/20'
@@ -116,17 +118,17 @@ export function CategoryPlayerGrid({
 
           {/* Search Bar & Status Chips */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative w-full sm:flex-1 sm:max-w-sm">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search player by name or jersey #..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 text-xs bg-white/[0.04] border-white/10 rounded-xl"
+                className="pl-9 min-h-[44px] sm:min-h-0 sm:h-9 text-xs bg-white/[0.04] border-white/10 rounded-xl"
               />
             </div>
 
-            <div className="flex items-center gap-1.5 self-end sm:self-auto overflow-x-auto pb-1 sm:pb-0">
+            <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
               {(['all', 'pending', 'sold', 'unsold'] as const).map((st) => {
                 const count = (selectedCategory === 'all'
                   ? players
@@ -138,7 +140,7 @@ export function CategoryPlayerGrid({
                     key={st}
                     type="button"
                     onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1.5 min-h-[36px] rounded-xl text-xs font-bold transition-all capitalize whitespace-nowrap touch-manipulation ${
+                    className={`px-2.5 sm:px-3 py-1.5 min-h-[40px] sm:min-h-[36px] rounded-xl text-xs font-bold transition-all capitalize whitespace-nowrap touch-manipulation ${
                       statusFilter === st
                         ? 'bg-amber-500 text-slate-950 shadow-sm'
                         : 'bg-white/[0.04] text-muted-foreground hover:bg-white/[0.08] hover:text-foreground'

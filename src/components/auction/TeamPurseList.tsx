@@ -26,9 +26,11 @@ export function TeamPurseList({ teams, playerPool }: TeamPurseListProps) {
         return (
           <Card key={team.id} className="overflow-hidden border hover:border-primary/40 transition-colors shadow-sm">
             <CardHeader className="p-3 pb-2.5 bg-muted/40 border-b space-y-1.5">
-              <div className="flex items-center justify-between">
-                <TeamBadge team={team} size="sm" showName={true} />
-                <Badge variant="outline" className="text-[11px] font-semibold">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <div className="min-w-0 flex-1">
+                  <TeamBadge team={team} size="sm" showName={true} />
+                </div>
+                <Badge variant="outline" className="text-[11px] font-semibold shrink-0">
                   Grp {team.group}
                 </Badge>
               </div>

@@ -84,24 +84,24 @@ export function Header({ className }: { className?: string }) {
   };
 
   return (
-    <header className={cn('relative overflow-hidden py-2.5 md:py-3.5 bg-card/85 backdrop-blur-xl border-b border-white/[0.08] shadow-md shadow-black/20', className)}>
+    <header className={cn('relative overflow-x-clip py-2.5 md:py-3.5 bg-card/85 backdrop-blur-xl border-b border-white/[0.08] shadow-md shadow-black/20', className)}>
       <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-emerald-500/5 to-cyan-500/10 opacity-70 pointer-events-none" />
 
-      <div className="relative container mx-auto px-3 sm:px-4">
+      <div className="relative container mx-auto px-2.5 sm:px-4">
         {/* Desktop Single Row / Mobile Responsive Split */}
-        <div className="flex items-center justify-between gap-2 md:gap-4">
+        <div className="flex items-center justify-between gap-1.5 sm:gap-2 md:gap-4">
           {/* Title & Branding */}
-          <div className="flex items-center gap-2.5 shrink-0">
-            <Link to="/" className="group flex items-center gap-2">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-400 flex items-center justify-center shadow-lg shadow-amber-500/25 group-hover:scale-105 group-hover:shadow-amber-500/40 transition-all text-black font-black">
+          <div className="flex items-center gap-2 min-w-0 shrink">
+            <Link to="/" className="group flex items-center gap-2 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-400 flex items-center justify-center shadow-lg shadow-amber-500/25 group-hover:scale-105 group-hover:shadow-amber-500/40 transition-all text-black font-black shrink-0">
                 <span className="text-lg sm:text-xl">🔨</span>
               </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg sm:text-2xl font-black tracking-tight text-foreground font-display">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1 sm:gap-1.5">
+                  <span className="text-base sm:text-2xl font-black tracking-tight text-foreground font-display">
                     KAPL
                   </span>
-                  <Badge variant="gold" className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 tracking-wider font-black">
+                  <Badge variant="gold" className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 tracking-wider font-black shrink-0">
                     <Sparkles className="w-2.5 h-2.5 mr-0.5 sm:mr-1 text-amber-300" /> 3.0
                   </Badge>
                 </div>
@@ -118,19 +118,19 @@ export function Header({ className }: { className?: string }) {
           </div>
 
           {/* Controls & User Account Bar */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* Quick Audio Toggle */}
             <Button
               variant="outline"
               size="icon"
               onClick={handleSoundToggle}
-              className="h-9 w-9 sm:h-8.5 sm:w-8.5 rounded-xl border-white/10 bg-white/[0.04] hover:bg-white/[0.08] shadow-xs touch-manipulation"
+              className="h-10 w-10 sm:h-9 sm:w-9 rounded-xl border-white/10 bg-white/[0.04] hover:bg-white/[0.08] shadow-xs touch-manipulation"
               title={soundOn ? 'Mute Sound Effects' : 'Enable Sound Effects'}
             >
               {soundOn ? (
-                <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+                <Volume2 className="w-4 h-4 text-amber-400" />
               ) : (
-                <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+                <VolumeX className="w-4 h-4 text-muted-foreground" />
               )}
             </Button>
 
@@ -140,7 +140,7 @@ export function Header({ className }: { className?: string }) {
               size="icon"
               onClick={handleSunlightToggle}
               className={cn(
-                'h-9 w-9 sm:h-8.5 sm:w-8.5 rounded-xl shadow-xs transition-all touch-manipulation',
+                'h-10 w-10 sm:h-9 sm:w-9 rounded-xl shadow-xs transition-all touch-manipulation',
                 isSunlightMode
                   ? 'bg-amber-500 text-black border-amber-600 hover:bg-amber-400'
                   : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.08]'
@@ -148,9 +148,9 @@ export function Header({ className }: { className?: string }) {
               title={isSunlightMode ? 'Switch to Stadium Night Mode' : 'Switch to Outdoor High-Contrast Sunlight Mode'}
             >
               {isSunlightMode ? (
-                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-black animate-spin-slow" />
+                <Sun className="w-4 h-4 text-black animate-spin-slow" />
               ) : (
-                <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground" />
+                <Moon className="w-4 h-4 text-muted-foreground" />
               )}
             </Button>
 
@@ -160,9 +160,9 @@ export function Header({ className }: { className?: string }) {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-9 sm:h-8.5 rounded-xl border-amber-500/35 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs px-2 sm:px-2.5 gap-1.5 shadow-xs touch-manipulation"
+                  className="h-10 sm:h-9 rounded-xl border-amber-500/35 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs px-2.5 gap-1.5 shadow-xs touch-manipulation"
                 >
-                  <Settings className="w-3.5 h-3.5 shrink-0" />
+                  <Settings className="w-4 h-4 shrink-0" />
                   <span className="hidden sm:inline">Settings</span>
                 </Button>
               </Link>
@@ -170,9 +170,9 @@ export function Header({ className }: { className?: string }) {
 
             {/* User Account / Auth */}
             {isAuthenticated && user ? (
-              <div className="flex items-center gap-1.5 sm:gap-2 bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-2xl pl-1.5 sm:pl-2 pr-2 py-1 shadow-sm transition-all">
-                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-                  <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-amber-500/40 shadow-xs shrink-0">
+              <div className="flex items-center gap-1 sm:gap-2 bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-2xl pl-1.5 sm:pl-2 pr-1 sm:pr-2 py-0.5 sm:py-1 shadow-sm transition-all max-w-[165px] sm:max-w-none">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-amber-500/40 shadow-xs shrink-0 hidden xs:flex sm:flex">
                     {profile?.photoUrl && (
                       <AvatarImage src={profile.photoUrl} alt={profile.name || 'User avatar'} className="object-cover" />
                     )}
@@ -186,7 +186,7 @@ export function Header({ className }: { className?: string }) {
                   </Avatar>
 
                   <div className="flex flex-col text-left min-w-0">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-foreground max-w-[70px] sm:max-w-[120px] md:max-w-[140px] truncate leading-tight">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-foreground max-w-[68px] sm:max-w-[120px] md:max-w-[140px] truncate leading-tight">
                       {profile?.name || user.email}
                     </span>
                     <div className="flex items-center gap-1 mt-0.5">
@@ -195,22 +195,22 @@ export function Header({ className }: { className?: string }) {
                   </div>
                 </div>
 
-                <div className="h-3.5 w-px bg-white/10 mx-0.5" />
+                <div className="h-3.5 w-px bg-white/10 mx-0.5 hidden sm:block" />
 
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 sm:h-7 sm:w-7 rounded-xl text-muted-foreground hover:text-red-400 hover:bg-red-500/10 touch-manipulation"
+                  className="h-9 w-9 sm:h-7 sm:w-7 rounded-xl text-muted-foreground hover:text-red-400 hover:bg-red-500/10 touch-manipulation shrink-0"
                   onClick={handleSignOut}
                   title="Sign Out"
                 >
-                  <LogOut className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  <LogOut className="w-3.5 h-3.5" />
                 </Button>
               </div>
             ) : (
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <Link to="/auth" state={{ tab: 'signin' }}>
-                  <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs font-bold hover:bg-white/[0.08] px-2 sm:px-2.5 touch-manipulation">
+                  <Button size="sm" variant="ghost" className="h-10 sm:h-9 rounded-xl text-xs font-bold hover:bg-white/[0.08] px-2.5 touch-manipulation">
                     Sign In
                   </Button>
                 </Link>

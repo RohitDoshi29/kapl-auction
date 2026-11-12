@@ -1849,6 +1849,11 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     tournamentId?: string;
   }): Promise<{ success: boolean; player?: PlayerRecord; error?: string }> => {
     try {
+      if (!isAdmin) {
+        const msg = 'Only administrators can add players to the auction.';
+        toast.error(msg);
+        return { success: false, error: msg };
+      }
       const cleanName = playerInput.name.trim();
       if (!cleanName) {
         return { success: false, error: 'Player name is required' };
@@ -2029,7 +2034,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       toast.error('Failed to add player: ' + err.message);
       return { success: false, error: err.message };
     }
-  }, [tournamentId, broadcastAuctionEvent, user?.id]);
+  }, [tournamentId, broadcastAuctionEvent, user?.id, isAdmin]);
 
   return {
     tournamentId,

@@ -100,12 +100,12 @@ export default function Auction() {
       <main className="relative z-10 container mx-auto px-3 sm:px-4 py-3 sm:py-4 md:py-6 space-y-4 md:space-y-6">
         {/* Tournament Switcher & Live Status Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-white/[0.08] bg-card/85 backdrop-blur-xl rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 md:p-5 shadow-xl shadow-black/20">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-500/20 to-yellow-500/15 border border-amber-500/30 flex items-center justify-center shadow-xs shrink-0">
               <Gavel className="w-5 h-5 text-amber-400" />
             </div>
-            <div>
-              <h1 className="text-base sm:text-lg md:text-2xl font-black text-foreground flex items-center gap-1.5 sm:gap-2 font-display tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg md:text-2xl font-black text-foreground flex flex-wrap items-center gap-1.5 sm:gap-2 font-display tracking-tight">
                 Live Player <span className="text-gradient-gold">Auction Room</span>
                 <Badge variant="gold" className="text-[9px] sm:text-[10px] font-black tracking-wider px-1.5 sm:px-2">
                   <Sparkles className="w-2.5 h-2.5 mr-0.5 text-amber-300" /> KAPL 3.0
@@ -124,7 +124,7 @@ export default function Auction() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-10 sm:h-8 text-xs font-bold border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 gap-1.5 shadow-sm touch-manipulation"
+                  className="min-h-[44px] sm:min-h-0 sm:h-9 text-xs font-bold border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 gap-1.5 shadow-sm touch-manipulation"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="hidden sm:inline">Export to Excel / Text</span>
@@ -134,14 +134,14 @@ export default function Auction() {
             />
 
             {isAdmin && (
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
                       size="sm"
                       variant="outline"
                       disabled={isResetting || playerPool.length === 0}
-                      className="h-10 sm:h-8 text-xs font-bold border-rose-500/40 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 gap-1.5 touch-manipulation"
+                      className="min-h-[44px] sm:min-h-0 sm:h-9 text-xs font-bold border-rose-500/40 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 gap-1.5 touch-manipulation"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-rose-400" />
                       <span className="hidden sm:inline">Clear Players</span>
@@ -173,7 +173,7 @@ export default function Auction() {
                       size="sm"
                       variant="outline"
                       disabled={isResetting}
-                      className="h-10 sm:h-8 text-xs font-bold border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 gap-1.5 touch-manipulation"
+                      className="min-h-[44px] sm:min-h-0 sm:h-9 text-xs font-bold border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:text-amber-300 gap-1.5 touch-manipulation"
                     >
                       <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
                       Reset
@@ -203,7 +203,7 @@ export default function Auction() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-              </div>
+              </>
             )}
 
             {/* Live or Completed Indicator */}
@@ -256,25 +256,25 @@ export default function Auction() {
           }}
           className="w-full space-y-4 md:space-y-6"
         >
-          <TabsList className={`grid w-full ${isAdmin ? 'max-w-2xl grid-cols-2 sm:grid-cols-4' : 'max-w-md grid-cols-3'} mx-auto bg-white/[0.04] border border-white/10 rounded-2xl p-1 backdrop-blur-md`}>
-            <TabsTrigger value="spotlight" className="gap-1 sm:gap-1.5 text-xs md:text-sm font-bold rounded-xl min-h-[44px] data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/20 data-[state=active]:to-yellow-500/15 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/35 touch-manipulation">
-              <Gavel className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+          <TabsList className={`flex w-full items-center justify-start sm:grid ${isAdmin ? 'max-w-2xl sm:grid-cols-4' : 'max-w-md sm:grid-cols-3'} gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden mx-auto bg-white/[0.04] border border-white/10 rounded-2xl p-1 backdrop-blur-md`}>
+            <TabsTrigger value="spotlight" className="shrink-0 sm:shrink flex-none sm:flex-1 gap-1 sm:gap-1.5 text-xs md:text-sm font-bold rounded-xl min-h-[44px] px-3 sm:px-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/20 data-[state=active]:to-yellow-500/15 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/35 touch-manipulation">
+              <Gavel className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
               <span>Spotlight</span><span className="hidden sm:inline">&nbsp;Stage</span>
             </TabsTrigger>
-            <TabsTrigger value="categories" className="gap-1 sm:gap-1.5 text-xs md:text-sm font-bold rounded-xl min-h-[44px] data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/20 data-[state=active]:to-yellow-500/15 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/35 touch-manipulation">
-              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            <TabsTrigger value="categories" className="shrink-0 sm:shrink flex-none sm:flex-1 gap-1 sm:gap-1.5 text-xs md:text-sm font-bold rounded-xl min-h-[44px] px-3 sm:px-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/20 data-[state=active]:to-yellow-500/15 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/35 touch-manipulation">
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
               <span>Categories</span><span className="text-[10px] opacity-80 ml-0.5">({playerPool.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="teams" className="gap-1 sm:gap-1.5 text-xs md:text-sm font-bold rounded-xl min-h-[44px] data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/20 data-[state=active]:to-yellow-500/15 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/35 touch-manipulation">
-              <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400" />
+            <TabsTrigger value="teams" className="shrink-0 sm:shrink flex-none sm:flex-1 gap-1 sm:gap-1.5 text-xs md:text-sm font-bold rounded-xl min-h-[44px] px-3 sm:px-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/20 data-[state=active]:to-yellow-500/15 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/35 touch-manipulation">
+              <Wallet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />
               <span>Purses</span><span className="text-[10px] opacity-80 ml-0.5">({teams.length})</span>
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger
                 value="admin"
-                className="gap-1 sm:gap-1.5 text-xs md:text-sm font-black rounded-xl min-h-[44px] data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/25 data-[state=active]:to-yellow-500/20 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/40 text-amber-400/90 touch-manipulation"
+                className="shrink-0 sm:shrink flex-none sm:flex-1 gap-1 sm:gap-1.5 text-xs md:text-sm font-black rounded-xl min-h-[44px] px-3 sm:px-2 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500/25 data-[state=active]:to-yellow-500/20 data-[state=active]:text-amber-300 data-[state=active]:border data-[state=active]:border-amber-500/40 text-amber-400/90 touch-manipulation"
               >
-                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse" />
+                <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse shrink-0" />
                 <span>Admin</span>
               </TabsTrigger>
             )}

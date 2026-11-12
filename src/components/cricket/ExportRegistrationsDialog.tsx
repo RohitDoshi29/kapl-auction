@@ -184,7 +184,7 @@ export function ExportRegistrationsDialog({
           </div>
 
           {/* Toggle between preview table and raw text */}
-          <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/[0.08]">
             <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-amber-400" />
               Player Pool Text Viewer
@@ -193,7 +193,7 @@ export function ExportRegistrationsDialog({
               <button
                 type="button"
                 onClick={() => setViewMode('summary')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                className={`px-3 py-1.5 min-h-[36px] rounded-lg font-medium transition-colors ${
                   viewMode === 'summary'
                     ? 'bg-amber-500 text-slate-950 font-bold'
                     : 'text-muted-foreground hover:text-foreground'
@@ -204,7 +204,7 @@ export function ExportRegistrationsDialog({
               <button
                 type="button"
                 onClick={() => setViewMode('rawText')}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${
+                className={`px-3 py-1.5 min-h-[36px] rounded-lg font-medium transition-colors ${
                   viewMode === 'rawText'
                     ? 'bg-amber-500 text-slate-950 font-bold'
                     : 'text-muted-foreground hover:text-foreground'

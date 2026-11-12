@@ -306,7 +306,6 @@ DROP POLICY IF EXISTS "Users can insert own player record" ON public.players;
 CREATE POLICY "Anyone can view players" ON public.players FOR SELECT USING (true);
 CREATE POLICY "Admins can manage all players" ON public.players FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 CREATE POLICY "Users can update own player record" ON public.players FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can insert own player record" ON public.players FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 
 DROP POLICY IF EXISTS "Anyone can view auction state" ON public.auction_state;
 DROP POLICY IF EXISTS "Admins can manage auction state" ON public.auction_state;
@@ -412,8 +411,8 @@ AS $$
 DECLARE
   v_result JSONB;
 BEGIN
-  IF NOT (public.is_admin() OR (auth.uid() IS NOT NULL AND auth.uid() = p_user_id)) THEN
-    RAISE EXCEPTION 'Access Denied: Only administrators or the authenticated user can register or update this player profile.';
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Access Denied: Only administrators can add or register players.';
   END IF;
 
   INSERT INTO public.players (

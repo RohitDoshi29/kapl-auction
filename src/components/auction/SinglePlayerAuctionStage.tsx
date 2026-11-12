@@ -250,7 +250,7 @@ export function SinglePlayerAuctionStage({
 
   if (!player) {
     return (
-      <Card className="p-8 text-center border-dashed border-2 rounded-3xl bg-card/60 max-w-xl mx-auto shadow-xl">
+      <Card className="p-5 sm:p-8 text-center border-dashed border-2 rounded-3xl bg-card/60 max-w-xl mx-auto shadow-xl">
         <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center mb-3 text-amber-400">
           <Gavel className="w-8 h-8" />
         </div>
@@ -259,28 +259,32 @@ export function SinglePlayerAuctionStage({
         </h3>
         <p className="text-muted-foreground text-xs mb-5 max-w-md mx-auto">
           {playerPool.length === 0
-            ? 'There are currently no candidates in the live auction queue. Add players to begin live bidding.'
+            ? isAdmin
+              ? 'There are currently no candidates in the live auction queue. Add players to begin live bidding.'
+              : 'There are currently no candidates in the live auction queue. An administrator can add players to begin live bidding.'
             : 'Select any candidate from the queue below to start the spotlight auction.'}
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-2.5">
-          <Suspense fallback={
-            <Button disabled className="h-9 bg-gray-600 text-slate-950 font-black gap-2 text-xs shadow-md">
-              <UserPlus className="w-4 h-4 text-slate-950" />
-              Add Player to Auction
-            </Button>
-          }>
-            <AddPlayerModal
-              tournamentId={tournamentId}
-              onAddPlayer={onAddPlayer}
-              trigger={
-                <Button className="h-9 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black gap-2 text-xs shadow-md touch-manipulation">
-                  <UserPlus className="w-4 h-4 text-slate-950" />
-                  Add Player to Auction
-                </Button>
-              }
-            />
-          </Suspense>
-        </div>
+        {isAdmin && (
+          <div className="flex flex-wrap items-center justify-center gap-2.5">
+            <Suspense fallback={
+              <Button disabled className="min-h-[44px] bg-gray-600 text-slate-950 font-black gap-2 text-xs shadow-md">
+                <UserPlus className="w-4 h-4 text-slate-950" />
+                Add Player to Auction
+              </Button>
+            }>
+              <AddPlayerModal
+                tournamentId={tournamentId}
+                onAddPlayer={onAddPlayer}
+                trigger={
+                  <Button className="min-h-[44px] bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black gap-2 text-xs shadow-md touch-manipulation">
+                    <UserPlus className="w-4 h-4 text-slate-950" />
+                    Add Player to Auction
+                  </Button>
+                }
+              />
+            </Suspense>
+          </div>
+        )}
       </Card>
     );
   }
@@ -448,14 +452,14 @@ export function SinglePlayerAuctionStage({
           </div>
         )}
 
-        <div className="p-6 md:p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="p-4 sm:p-6 md:p-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             {/* Player Profile & Base Value (Left 5 cols) */}
             <div className="lg:col-span-5 flex flex-col items-center text-center space-y-4 border-b lg:border-b-0 lg:border-r border-white/10 pb-6 lg:pb-0 lg:pr-6">
               <div className="relative">
-                <Avatar className="w-36 h-36 md:w-44 md:h-44 border-4 border-amber-500/30 shadow-2xl rounded-full">
+                <Avatar className="w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44 border-4 border-amber-500/30 shadow-2xl rounded-full">
                   <AvatarImage src={player.photoUrl || undefined} alt={player.name} className="object-cover" />
-                  <AvatarFallback className="bg-amber-500/10 text-amber-400 text-4xl md:text-5xl font-black">
+                  <AvatarFallback className="bg-amber-500/10 text-amber-400 text-3xl sm:text-4xl md:text-5xl font-black">
                     {(player.name || 'P').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -466,9 +470,9 @@ export function SinglePlayerAuctionStage({
                 )}
               </div>
 
-              <div>
+              <div className="w-full min-w-0">
                 <div className="mb-2">{getRoleBadge(player.role)}</div>
-                <h2 className="text-3xl md:text-4xl font-black text-foreground tracking-tight">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-foreground tracking-tight break-words">
                   {player.name}
                 </h2>
                 <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground mt-2">
@@ -524,14 +528,14 @@ export function SinglePlayerAuctionStage({
             </div>
 
             {/* Right Side: Admin Decision Panel (Admin Only) + Franchise Status & Analytics Hub (Owner + Admin) */}
-            <div className="lg:col-span-7 space-y-6">
+            <div className="lg:col-span-7 space-y-6 min-w-0">
               {/* ADMIN DECISION CONSOLE (Only Visible to Admin) */}
               {isAdmin && (
-                <div className="space-y-4 bg-card/90 border border-amber-500/30 rounded-2xl p-5 shadow-lg">
+                <div className="space-y-4 bg-card/90 border border-amber-500/30 rounded-2xl p-4 sm:p-5 shadow-lg">
                   <div>
-                    <h3 className="text-lg font-black flex items-center gap-2 text-foreground">
-                      <Gavel className="w-5 h-5 text-amber-400" />
-                      Auctioneer Decision Console
+                    <h3 className="text-base sm:text-lg font-black flex flex-wrap items-center gap-2 text-foreground">
+                      <Gavel className="w-5 h-5 text-amber-400 shrink-0" />
+                      <span>Auctioneer Decision Console</span>
                       <Badge className="bg-amber-500/20 text-amber-400 text-[10px] font-black">
                         Admin Only
                       </Badge>
@@ -543,10 +547,10 @@ export function SinglePlayerAuctionStage({
 
                   {/* Step 1: Select Winning Team */}
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex flex-wrap items-center justify-between gap-1">
                       <span>1. Select Winning Team</span>
                       {selectedTeam && (
-                        <span className="text-amber-400 font-bold font-mono">
+                        <span className="text-amber-400 font-bold font-mono text-[11px]">
                           Purse: {formatMoney(selectedTeam.remainingPurse ?? 10000)} • Squad: {selectedTeam.players?.length || 0}/10
                         </span>
                       )}
@@ -598,8 +602,8 @@ export function SinglePlayerAuctionStage({
                       2. Final Sold Amount
                     </Label>
 
-                    <div className="flex items-center gap-2">
-                      <div className="relative flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
+                      <div className="relative flex-1 min-w-0">
                         <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">
                           ₹
                         </span>
@@ -614,14 +618,14 @@ export function SinglePlayerAuctionStage({
                       </div>
 
                       {/* Quick Increments */}
-                      <div className="flex flex-wrap gap-1">
+                      <div className="grid grid-cols-5 sm:flex sm:flex-wrap gap-1.5">
                         {[50, 100, 250, 500, 1000].map((inc) => (
                           <Button
                             key={inc}
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-10 sm:h-11 px-2 sm:px-2.5 font-bold text-xs rounded-xl flex-1 min-w-[52px] touch-manipulation"
+                            className="h-11 px-1.5 sm:px-2.5 font-bold text-xs rounded-xl sm:flex-1 sm:min-w-[52px] touch-manipulation"
                             onClick={() => setSoldAmount((prev) => prev + inc)}
                           >
                             +{inc}
@@ -668,22 +672,22 @@ export function SinglePlayerAuctionStage({
                             type="button"
                             size="lg"
                             disabled={isHammerBlocked}
-                            className="h-12 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm gap-2 rounded-xl shadow-lg disabled:opacity-50"
+                            className="min-h-[48px] h-auto py-2.5 px-4 whitespace-normal text-center leading-snug bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-sm gap-2 rounded-xl shadow-lg disabled:opacity-50"
                             onClick={handleConfirmSale}
                           >
-                            <CheckCircle2 className="w-5 h-5" />
-                            Hammer SOLD to {selectedTeam?.name} ({formatMoney(soldAmount)})
+                            <CheckCircle2 className="w-5 h-5 shrink-0" />
+                            <span>Hammer SOLD to {selectedTeam?.name} ({formatMoney(soldAmount)})</span>
                           </Button>
 
                           <Button
                             type="button"
                             size="lg"
                             variant="destructive"
-                            className="h-12 font-black text-sm gap-2 rounded-xl"
+                            className="min-h-[48px] h-auto py-2.5 font-black text-sm gap-2 rounded-xl"
                             onClick={() => onDecideUnsold(player.id)}
                           >
-                            <XCircle className="w-5 h-5" />
-                            Mark UNSOLD
+                            <XCircle className="w-5 h-5 shrink-0" />
+                            <span>Mark UNSOLD</span>
                           </Button>
                         </div>
                       </div>
@@ -824,7 +828,7 @@ export function SinglePlayerAuctionStage({
 
                 {/* 2. Team Analytics & Squad Composition Breakdown */}
                 <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 text-xs space-y-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                     <span className="font-bold text-foreground flex items-center gap-1.5 text-xs">
                       📊 Team Composition Analytics
                     </span>
@@ -834,7 +838,7 @@ export function SinglePlayerAuctionStage({
                   </div>
 
                   {/* Role composition chips */}
-                  <div className="grid grid-cols-4 gap-2 pt-1 text-center">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-center">
                     <div className="p-2 rounded-lg bg-white/[0.03] border border-white/5 text-[11px]">
                       <span className="text-muted-foreground block text-[10px]">🏏 Batters</span>
                       <span className="font-black text-sm text-foreground">{battersCount}</span>
@@ -955,10 +959,10 @@ export function SinglePlayerAuctionStage({
 
       {/* 4. ALL FRANCHISE PURSES, QUOTAS & ACQUIRED PLAYERS (WHAT OTHER TEAMS HAVE & WHO WAS SOLD TO WHO) */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-            <Wallet className="w-4 h-4 text-amber-400" />
-            All Franchise Purses, Quotas & Acquired Rosters
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <h3 className="text-xs sm:text-sm font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>All Franchise Purses, Quotas & Acquired Rosters</span>
           </h3>
           <span className="text-xs text-muted-foreground">
             Click any team to inspect their wallet & squad breakdown
@@ -1087,18 +1091,18 @@ export function SinglePlayerAuctionStage({
 
       {/* 6. PROJECTOR / BIG SCREEN TV MODE (FOR STADIUM & HALL SCREENS) */}
       {isProjectorMode && (
-        <div className="fixed inset-0 z-50 bg-slate-950/98 backdrop-blur-2xl flex flex-col p-4 md:p-8 overflow-y-auto">
+        <div className="fixed inset-0 z-50 h-[100dvh] bg-slate-950/98 backdrop-blur-2xl flex flex-col p-3 sm:p-4 md:p-8 overflow-y-auto">
           {/* Top Bar */}
-          <div className="flex items-center justify-between pb-4 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-white/10">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0">
                 <Tv className="w-6 h-6 text-amber-400" />
               </div>
-              <div>
-                <h2 className="text-xl md:text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
+              <div className="min-w-0">
+                <h2 className="text-base sm:text-xl md:text-2xl font-black text-foreground tracking-tight flex flex-wrap items-center gap-x-2">
                   KAPL 3.0 AUCTION <span className="text-amber-400">• STADIUM STAGE</span>
                 </h2>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[11px] sm:text-xs text-muted-foreground">
                   High-contrast live display for LED screens and hall projectors
                 </p>
               </div>
@@ -1108,20 +1112,20 @@ export function SinglePlayerAuctionStage({
               variant="outline"
               size="sm"
               onClick={() => setIsProjectorMode(false)}
-              className="font-bold border-white/20 text-foreground hover:bg-white/10 gap-1.5"
+              className="min-h-[44px] sm:min-h-9 font-bold border-white/20 text-foreground hover:bg-white/10 gap-1.5"
             >
               <Minimize2 className="w-4 h-4" /> Exit TV Mode
             </Button>
           </div>
 
           {/* Huge Main Stage Display */}
-          <div className="flex-1 flex flex-col items-center justify-center my-6 max-w-5xl mx-auto w-full text-center space-y-6">
+          <div className="flex-1 flex flex-col items-center justify-center my-4 sm:my-6 max-w-5xl mx-auto w-full text-center space-y-5 sm:space-y-6">
             {/* Status Pill */}
             {isSold && assignedTeam ? (
-              <div className="w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 text-white p-4 rounded-3xl font-black text-2xl md:text-4xl shadow-2xl flex items-center justify-center gap-3 animate-bounce">
-                <Sparkles className="w-8 h-8 text-yellow-300" />
-                SOLD TO {assignedTeam.name.toUpperCase()} FOR {formatMoney(player.soldPrice || player.basePrice)}!
-                <Sparkles className="w-8 h-8 text-yellow-300" />
+              <div className="w-full bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-600 text-white p-3.5 sm:p-4 rounded-3xl font-black text-lg sm:text-2xl md:text-4xl shadow-2xl flex items-center justify-center gap-2 sm:gap-3 animate-bounce">
+                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-300 shrink-0" />
+                <span>SOLD TO {assignedTeam.name.toUpperCase()} FOR {formatMoney(player.soldPrice || player.basePrice)}!</span>
+                <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-300 shrink-0" />
               </div>
             ) : isUnsold ? (
               <div className="w-full bg-destructive text-destructive-foreground p-3 rounded-2xl font-black text-xl md:text-2xl shadow-lg">
@@ -1160,7 +1164,7 @@ export function SinglePlayerAuctionStage({
             </div>
 
             {/* Giant Base Price Box */}
-            <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/15 border-2 border-amber-500/40 rounded-3xl p-6 px-12 shadow-2xl">
+            <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/15 border-2 border-amber-500/40 rounded-3xl p-4 sm:p-6 px-6 sm:px-12 shadow-2xl max-w-full">
               <span className="text-xs md:text-sm text-amber-400 uppercase font-black tracking-widest block mb-1">
                 Official Base Value
               </span>

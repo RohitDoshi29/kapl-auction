@@ -223,7 +223,7 @@ export function AdminAuctionDesk({
   return (
     <div className="space-y-6">
       {/* 1. TOP OVERVIEW & STATS BAR */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
         <Card className="border border-white/10 bg-card/80 p-3.5 rounded-2xl shadow-sm">
           <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Total Pool</p>
           <p className="text-xl md:text-2xl font-black text-foreground mt-0.5">{stats.total} Players</p>
@@ -255,16 +255,16 @@ export function AdminAuctionDesk({
             </Button>
           )}
         </Card>
-        <Card className="border border-primary/20 bg-primary/5 p-3.5 rounded-2xl shadow-sm flex flex-col justify-between col-span-2 sm:col-span-1">
+        <Card className="border border-primary/20 bg-primary/5 p-3.5 rounded-2xl shadow-sm flex flex-col justify-between col-span-2 md:col-span-1">
           <div>
             <p className="text-[10px] uppercase font-bold text-primary tracking-wider">Franchise Purse</p>
             <p className="text-xs text-muted-foreground mt-0.5">₹10,000 / team initial</p>
           </div>
-          <div className="flex items-center gap-1.5 mt-2">
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold border-amber-500/30 text-amber-400 hover:bg-amber-500/10 gap-1 flex-1">
-                  <RotateCcw className="w-3 h-3" /> Reset Season
+                <Button size="sm" variant="outline" className="min-h-[38px] sm:min-h-0 sm:h-8 text-[11px] font-bold border-amber-500/30 text-amber-400 hover:bg-amber-500/10 gap-1 flex-1 whitespace-nowrap">
+                  <RotateCcw className="w-3 h-3 shrink-0" /> Reset
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -290,9 +290,9 @@ export function AdminAuctionDesk({
                     size="sm"
                     variant="outline"
                     disabled={playerPool.length === 0}
-                    className="h-7 text-[10px] font-bold border-rose-500/30 text-rose-400 hover:bg-rose-500/10 gap-1 flex-1"
+                    className="min-h-[38px] sm:min-h-0 sm:h-8 text-[11px] font-bold border-rose-500/30 text-rose-400 hover:bg-rose-500/10 gap-1 flex-1 whitespace-nowrap"
                   >
-                    <Trash2 className="w-3 h-3" /> Clear All
+                    <Trash2 className="w-3 h-3 shrink-0" /> Clear
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -546,7 +546,7 @@ export function AdminAuctionDesk({
                 )}
 
                 {/* 3. Action Buttons */}
-                <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-white/10">
+                <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3 pt-2 border-t border-white/10">
                   <Button
                     onClick={handleConfirmSold}
                     disabled={
@@ -555,33 +555,35 @@ export function AdminAuctionDesk({
                       (selectedTeam?.players?.length || 0) >= (selectedTeam?.maxSquadSize || 10) ||
                       selectedTeamPurse < soldPrice
                     }
-                    className="flex-1 min-w-[200px] h-11 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm gap-2 shadow-lg shadow-emerald-950/20"
+                    className="w-full sm:w-auto sm:flex-1 min-w-0 min-h-[48px] h-auto py-2.5 px-4 whitespace-normal text-center leading-snug bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm gap-2 shadow-lg shadow-emerald-950/20"
                   >
-                    <Gavel className="w-4 h-4" />
-                    Hammer SOLD to {selectedTeam?.name || 'Selected Team'} for {formatMoney(soldPrice)}!
+                    <Gavel className="w-4 h-4 shrink-0" />
+                    <span>Hammer SOLD to {selectedTeam?.name || 'Selected Team'} for {formatMoney(soldPrice)}!</span>
                   </Button>
 
-                  <Button
-                    variant="destructive"
-                    onClick={handleMarkUnsold}
-                    disabled={isSubmitting || isCurrentSold}
-                    className="h-11 px-4 text-xs font-bold gap-1.5 disabled:opacity-50"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Pass (UNSOLD)
-                  </Button>
-
-                  {(isCurrentSold || isCurrentUnsold) && (
+                  <div className="flex items-center gap-2">
                     <Button
-                      variant="outline"
-                      onClick={() => onRevertStatus(currentPlayer.id)}
-                      disabled={isSubmitting}
-                      className="h-11 px-3 text-xs font-bold gap-1 text-muted-foreground hover:text-foreground"
+                      variant="destructive"
+                      onClick={handleMarkUnsold}
+                      disabled={isSubmitting || isCurrentSold}
+                      className="flex-1 sm:flex-none min-h-[44px] h-11 px-4 text-xs font-bold gap-1.5 disabled:opacity-50"
                     >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      Revert Status
+                      <XCircle className="w-4 h-4 shrink-0" />
+                      Pass (UNSOLD)
                     </Button>
-                  )}
+
+                    {(isCurrentSold || isCurrentUnsold) && (
+                      <Button
+                        variant="outline"
+                        onClick={() => onRevertStatus(currentPlayer.id)}
+                        disabled={isSubmitting}
+                        className="flex-1 sm:flex-none min-h-[44px] h-11 px-3 text-xs font-bold gap-1 text-muted-foreground hover:text-foreground"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                        Revert Status
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -643,56 +645,58 @@ export function AdminAuctionDesk({
           </div>
 
           {/* Search & Status Filters */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mt-4 pt-3 border-t border-white/10">
-            <div className="flex items-center gap-2 flex-1 max-w-md">
-              <div className="relative flex-1">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 mt-4 pt-3 border-t border-white/10">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 min-w-0">
+              <div className="relative w-full sm:flex-1 sm:max-w-xs min-w-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search candidates by name (e.g. Player 15)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 text-xs bg-background/60 border-white/10 rounded-xl"
+                  className="pl-9 min-h-[44px] sm:min-h-0 sm:h-9 text-xs bg-background/60 border-white/10 rounded-xl"
                 />
               </div>
-              <Suspense fallback={
-                <Button size="sm" disabled className="h-9 bg-gray-600 text-slate-950 font-black gap-1.5 text-xs shrink-0 shadow-sm">
-                  <UserPlus className="w-3.5 h-3.5 text-slate-950" />
-                  + Add Player
-                </Button>
-              }>
-                <AddPlayerModal
-                  tournamentId={tournamentId}
-                  onAddPlayer={onAddPlayer}
+              <div className="flex flex-wrap items-center gap-2">
+                <Suspense fallback={
+                  <Button size="sm" disabled className="min-h-[44px] sm:min-h-0 sm:h-9 bg-gray-600 text-slate-950 font-black gap-1.5 text-xs shrink-0 shadow-sm">
+                    <UserPlus className="w-3.5 h-3.5 text-slate-950" />
+                    + Add Player
+                  </Button>
+                }>
+                  <AddPlayerModal
+                    tournamentId={tournamentId}
+                    onAddPlayer={onAddPlayer}
+                    trigger={
+                      <Button size="sm" className="min-h-[44px] sm:min-h-0 sm:h-9 flex-1 sm:flex-none bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black gap-1.5 text-xs shrink-0 shadow-sm">
+                        <UserPlus className="w-3.5 h-3.5 text-slate-950" />
+                        + Add Player
+                      </Button>
+                    }
+                  />
+                </Suspense>
+                <ExportRegistrationsDialog
                   trigger={
-                    <Button size="sm" className="h-9 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-slate-950 font-black gap-1.5 text-xs shrink-0 shadow-sm">
-                      <UserPlus className="w-3.5 h-3.5 text-slate-950" />
-                      + Add Player
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="min-h-[44px] sm:min-h-0 sm:h-9 flex-1 sm:flex-none text-xs font-bold border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 gap-1.5 shrink-0 shadow-sm"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                      Export
                     </Button>
                   }
                 />
-              </Suspense>
-              <ExportRegistrationsDialog
-                trigger={
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-9 text-xs font-bold border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 gap-1.5 shrink-0 shadow-sm"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                    Export
-                  </Button>
-                }
-              />
+              </div>
             </div>
 
-            <div className="flex items-center gap-1.5 self-end sm:self-auto text-xs">
+            <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto text-xs">
               <span className="text-muted-foreground font-medium text-[11px] mr-1">Status:</span>
               {(['all', 'pending', 'sold', 'unsold'] as const).map((st) => (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setSelectedStatus(st)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize transition-all ${
+                  className={`px-2.5 sm:px-3 py-1.5 min-h-[40px] sm:min-h-0 rounded-lg text-xs font-bold capitalize transition-all ${
                     selectedStatus === st
                       ? 'bg-foreground text-background font-black'
                       : 'bg-muted/40 text-muted-foreground hover:text-foreground'
@@ -706,7 +710,113 @@ export function AdminAuctionDesk({
         </CardHeader>
 
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Mobile Card Queue (< md) */}
+          <div className="md:hidden divide-y divide-white/10">
+            {filteredQueue.length === 0 ? (
+              <div className="py-8 px-4 text-center text-xs text-muted-foreground">
+                No candidates found matching the selected filters.
+              </div>
+            ) : (
+              filteredQueue.map((p) => {
+                const isSpotlight = currentPlayer?.id === p.id;
+                const assignedTeam = (teams || []).find((t) => t.id === p.teamId);
+                const isSold = p.auctionStatus === 'sold';
+                const isUnsold = p.auctionStatus === 'unsold';
+
+                return (
+                  <div
+                    key={p.id}
+                    className={`p-3.5 space-y-2.5 ${isSpotlight ? 'bg-amber-500/10' : ''}`}
+                  >
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar className="w-10 h-10 rounded-xl border border-white/10 shrink-0">
+                          <AvatarImage src={p.photoUrl || undefined} alt={p.name} />
+                          <AvatarFallback className="text-xs font-black bg-muted">
+                            {(p.name || 'P').slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm text-foreground truncate">{p.name}</p>
+                          <p className="text-[11px] text-muted-foreground capitalize truncate">
+                            {formatPlayerRole(p.role)} • Base {formatMoney(p.basePrice)}
+                          </p>
+                          {assignedTeam && (
+                            <p className="text-[11px] font-semibold text-emerald-400 truncate mt-0.5">
+                              {assignedTeam.name}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {isSpotlight ? (
+                          <Badge className="bg-amber-500 text-slate-950 text-[10px] font-black gap-1">
+                            ON HAMMER
+                          </Badge>
+                        ) : isSold ? (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                            SOLD {formatMoney(p.soldPrice || p.basePrice)}
+                          </Badge>
+                        ) : isUnsold ? (
+                          <Badge variant="destructive" className="text-[10px] font-bold">
+                            UNSOLD
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                            PENDING
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {isSpotlight ? (
+                        <Button size="sm" variant="secondary" disabled className="min-h-[44px] flex-1 text-xs font-bold">
+                          Active Podium
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => onSpotlightPlayer(p)}
+                          className="min-h-[44px] flex-1 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 gap-1"
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          Bring to Spotlight
+                        </Button>
+                      )}
+                      {(isSold || isUnsold) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onRevertStatus(p.id)}
+                          className="min-h-[44px] px-3 text-xs"
+                        >
+                          Revert
+                        </Button>
+                      )}
+                      {onRemovePlayer && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            if (window.confirm(`Permanently remove candidate "${p.name}" from auction?`)) {
+                              onRemovePlayer(p.id);
+                            }
+                          }}
+                          className="min-h-[44px] min-w-[44px] p-0 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
+                          title="Remove candidate from auction"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead className="bg-muted/50 text-muted-foreground font-bold border-b border-white/10 uppercase tracking-wider text-[10px]">
                 <tr>
