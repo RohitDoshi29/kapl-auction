@@ -305,7 +305,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       // 2. Fetch non-legacy players from Supabase (public safe columns)
       const { data: allPlayers, error: playersError } = await supabase
         .from('players')
-        .select('id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status')
+        .select('id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status, mobile_number')
         .order('name');
 
       if (playersError) throw playersError;
@@ -1973,6 +1973,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
                 mobile_number: playerInput.mobileNumber || null,
                 tournament_id: tId,
                 base_price: basePrice,
+                auction_status: 'pending',
               }).eq('id', idForTourn);
               if (!updateErr) {
                 dbSuccess = true;

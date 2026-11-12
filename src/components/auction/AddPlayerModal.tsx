@@ -178,6 +178,7 @@ export function AddPlayerModal({
                   mobile_number: validation.data.mobileNumber || null,
                   tournament_id: tId,
                   base_price: Number(basePrice) || 100,
+                  auction_status: 'pending',
                 }).eq('id', idForTourn);
                 if (updErr) throw new Error(updErr.message);
               } else {
