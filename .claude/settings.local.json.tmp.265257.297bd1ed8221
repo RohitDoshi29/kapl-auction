@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(node scripts/import-players.mjs kapl-3-womens)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Add bulk player import scripts and guide *)"
+    ]
+  }
+}
