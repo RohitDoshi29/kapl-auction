@@ -69,18 +69,26 @@ export default function Auth() {
     if (!email) return;
     try {
       setIsCheckingRole(true);
+      const normalizedEmail = email.toLowerCase().trim();
+      console.log('Checking role for email:', normalizedEmail);
+
       const { data, error } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('email', email.toLowerCase())
-        .single();
+        .eq('email', normalizedEmail)
+        .maybeSingle();
 
-      if (data) {
+      console.log('Role lookup result:', { data, error });
+
+      if (data?.role) {
+        console.log('Found assigned role:', data.role);
         setAssignedRole(data.role);
       } else {
+        console.log('No role found for this email');
         setAssignedRole(null);
       }
     } catch (err) {
+      console.error('Error checking email role:', err);
       setAssignedRole(null);
     } finally {
       setIsCheckingRole(false);

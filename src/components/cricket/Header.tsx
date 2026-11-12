@@ -7,14 +7,14 @@ import { isSoundEnabled, setSoundEnabled, playBoundaryFour } from '@/lib/soundEf
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, User, Sparkles, Sun, Moon, Volume2, VolumeX, Crown, Settings } from 'lucide-react';
+import { LogOut, User, Sparkles, Sun, Moon, Volume2, VolumeX, Crown, Settings, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { TournamentSwitcher } from './TournamentSwitcher';
 
 export function Header({ className }: { className?: string }) {
   const navigate = useNavigate();
-  const { user, userRole, signOut, isAuthenticated, isAdmin, profile } = useAuth();
+  const { user, userRole, signOut, isAuthenticated, isAdmin, isOwner, profile } = useAuth();
   const { isSunlightMode, toggleSunlightMode } = useSunlightMode();
   const [soundOn, setSoundOn] = useState<boolean>(true);
 
@@ -153,6 +153,20 @@ export function Header({ className }: { className?: string }) {
                 <Moon className="w-4 h-4 text-muted-foreground" />
               )}
             </Button>
+
+            {/* Owner-only Team Analysis Button */}
+            {isAuthenticated && isOwner && (
+              <Link to="/owner/team-analysis" title="View Team Analysis">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 sm:h-9 rounded-xl border-blue-500/35 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-bold text-xs px-2.5 gap-1.5 shadow-xs touch-manipulation"
+                >
+                  <BarChart3 className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Analysis</span>
+                </Button>
+              </Link>
+            )}
 
             {/* Admin-only Settings Button (near account / login area) */}
             {isAuthenticated && isAdmin && (
