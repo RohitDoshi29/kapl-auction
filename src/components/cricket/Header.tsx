@@ -7,7 +7,7 @@ import { isSoundEnabled, setSoundEnabled, playBoundaryFour } from '@/lib/soundEf
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, User, Sparkles, Sun, Moon, Volume2, VolumeX, Crown, Settings, Users } from 'lucide-react';
+import { LogOut, User, Sparkles, Sun, Moon, Volume2, VolumeX, Crown, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { TournamentSwitcher } from './TournamentSwitcher';
@@ -154,30 +154,18 @@ export function Header({ className }: { className?: string }) {
               )}
             </Button>
 
-            {/* Admin-only Buttons */}
+            {/* Admin-only Settings Button (near account / login area) */}
             {isAuthenticated && isAdmin && (
-              <>
-                <Link to="/admin/manage-users" title="Manage User Accounts">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-10 sm:h-9 rounded-xl border-emerald-500/35 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 font-bold text-xs px-2.5 gap-1.5 shadow-xs touch-manipulation"
-                  >
-                    <Users className="w-4 h-4 shrink-0" />
-                    <span className="hidden sm:inline">Users</span>
-                  </Button>
-                </Link>
-                <Link to="/settings" title="Admin Settings & Role Access">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-10 sm:h-9 rounded-xl border-amber-500/35 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs px-2.5 gap-1.5 shadow-xs touch-manipulation"
-                  >
-                    <Settings className="w-4 h-4 shrink-0" />
-                    <span className="hidden sm:inline">Settings</span>
-                  </Button>
-                </Link>
-              </>
+              <Link to="/settings" title="Admin Settings & Role Access">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-10 sm:h-9 rounded-xl border-amber-500/35 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs px-2.5 gap-1.5 shadow-xs touch-manipulation"
+                >
+                  <Settings className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">Settings</span>
+                </Button>
+              </Link>
             )}
 
             {/* User Account / Auth */}
