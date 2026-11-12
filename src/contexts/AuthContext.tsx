@@ -8,6 +8,41 @@ import { saveToPlayerVault } from '@/lib/exportRegistrations';
 export const isValidUuid = (id?: string | null): boolean =>
   Boolean(id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
 
+const isMissingRpcError = (msg?: string, code?: string): boolean => {
+  const lower = (msg || '').toLowerCase();
+  return (
+    code === 'PGRST202' ||
+    code === '42883' ||
+    lower.includes('could not find the function') ||
+    lower.includes('does not exist')
+  );
+};
+
+async function syncRoleRpcByEmail(
+  action: 'assign' | 'revoke',
+  cleanEmail: string,
+  role?: UserRole | null,
+  hasSession?: boolean
+): Promise<{ error: Error | null }> {
+  if (!hasSession) return { error: null };
+  const isElevatedRole = Boolean(role && role !== 'player' && role !== 'user');
+  const { error } =
+    action === 'assign' && isElevatedRole
+      ? await supabase.rpc('admin_assign_role_by_email', {
+          p_email: cleanEmail,
+          p_role: role as any,
+        })
+      : await supabase.rpc('admin_revoke_role_by_email', {
+          p_email: cleanEmail,
+          p_role: isElevatedRole ? (role as any) : null,
+        });
+
+  if (error && !isMissingRpcError(error.message, error.code)) {
+    return { error: new Error(error.message) };
+  }
+  return { error: null };
+}
+
 export async function syncPlayerToAuctionAndTournament(playerRecord: PlayerRecord) {
   try {
     const targetTournaments =
@@ -1191,6 +1226,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!email.trim() || !role) return { error: null };
     try {
       const cleanEmail = email.toLowerCase().trim();
+      const rpcRes = await syncRoleRpcByEmail('assign', cleanEmail, role, Boolean(session?.user));
+      if (rpcRes.error) return rpcRes;
+
       const storedRoles = JSON.parse(localStorage.getItem('kapl_email_roles') || '{}');
       storedRoles[cleanEmail] = role;
       localStorage.setItem('kapl_email_roles', JSON.stringify(storedRoles));
@@ -1216,7 +1254,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e: any) {
       return { error: new Error(e.message || 'Failed to assign role by email') };
     }
-  }, [user]);
+  }, [user, session]);
 
   const revokeRoleByEmail = useCallback(async (email: string, role?: UserRole) => {
     const cleanEmail = email.toLowerCase().trim();
@@ -1286,14 +1324,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      const rpcRes = await syncRoleRpcByEmail('revoke', cleanEmail, role, Boolean(session?.user));
+
       if (user && user.email && user.email.toLowerCase().trim() === cleanEmail) {
         setUserRole('player');
       }
-      return { error: null };
+      return rpcRes;
     } catch (e: any) {
       return { error: new Error(e.message || 'Failed to revoke role by email') };
     }
-  }, [user]);
+  }, [user, session]);
 
   const signInWithGoogle = useCallback(async () => {
     const redirectUrl = `${window.location.origin}/`;

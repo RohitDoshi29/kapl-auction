@@ -523,6 +523,20 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_assign_role_by_email: {
+        Args: {
+          p_email: string
+          p_role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: Json
+      }
+      admin_revoke_role_by_email: {
+        Args: {
+          p_email: string
+          p_role?: Database["public"]["Enums"]["app_role"] | null
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "co_admin" | "user" | "primary_scorer" | "secondary_scorer" | "captain" | "owner" | "player"
