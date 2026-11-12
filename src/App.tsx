@@ -15,6 +15,7 @@ import Auction from "./pages/Auction";
 const Auth = lazy(() => import("./pages/Auth"));
 const Settings = lazy(() => import("./pages/Settings"));
 const HealthCheckRoute = lazy(() => import('./pages/Health'));
+const AdminManagement = lazy(() => import("./pages/AdminManagement"));
 
 // Optimized Query Client with aggressive edge caching for high concurrency
 const queryClient = new QueryClient({
@@ -62,6 +63,7 @@ const App = () => (
                   <Route path="/auction" element={<Auction />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/admin/manage-users" element={<AdminManagement />} />
 
                   {/* Redirect all other paths to Auction */}
                   <Route path="*" element={<Navigate to="/" replace />} />
