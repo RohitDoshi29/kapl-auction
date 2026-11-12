@@ -2050,18 +2050,36 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         setSelectedCategory('all');
       }
 
-      // 5. Sync to registered players list and auction across all tabs
+      // 5. Sync to registered players list and auction across all tabs (with timeout)
       console.log('🔄 Syncing player to auction and tournament...', { playerId: activeCandidate.id });
-      await syncPlayerToAuctionAndTournament(masterRecord);
-      console.log('✅ Player sync complete', { playerId: activeCandidate.id });
+      const syncPromise = syncPlayerToAuctionAndTournament(masterRecord);
+      const syncTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Player sync timeout after 10s')), 10000)
+      );
+      try {
+        await Promise.race([syncPromise, syncTimeout]);
+        console.log('✅ Player sync complete', { playerId: activeCandidate.id });
+      } catch (timeoutErr) {
+        console.warn('⚠️ Player sync timeout, continuing anyway', { playerId: activeCandidate.id });
+        // Don't throw - continue anyway since the player was already saved to Supabase
+      }
 
-      // 6. Broadcast across tabs and Supabase channels
+      // 6. Broadcast across tabs and Supabase channels (with timeout)
       console.log('📢 Broadcasting player added event...', { playerId: activeCandidate.id });
-      broadcastAuctionEvent('auction_player_added', {
+      const broadcastPromise = Promise.resolve(broadcastAuctionEvent('auction_player_added', {
         player: activeCandidate,
         tournamentId: targetTourn,
-      });
-      console.log('✅ Broadcast complete', { playerId: activeCandidate.id });
+      }));
+      const broadcastTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Broadcast timeout after 5s')), 5000)
+      );
+      try {
+        await Promise.race([broadcastPromise, broadcastTimeout]);
+        console.log('✅ Broadcast complete', { playerId: activeCandidate.id });
+      } catch (timeoutErr) {
+        console.warn('⚠️ Broadcast timeout, continuing anyway', { playerId: activeCandidate.id });
+        // Don't throw - broadcast is non-critical
+      }
 
       return { success: true, player: activeCandidate };
     } catch (err: any) {

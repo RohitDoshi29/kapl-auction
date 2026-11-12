@@ -133,7 +133,12 @@ export function AddPlayerModal({
     setIsSubmitting(true);
     let createdPlayer: PlayerRecord | undefined;
     try {
-      await executeRequest('add-player', async () => {
+      // Add timeout of 30 seconds for the entire operation
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Player addition timed out after 30 seconds. Please try again.')), 30000)
+      );
+
+      const addPlayerPromise = executeRequest('add-player', async () => {
         if (onAddPlayer) {
           logger.info('Adding player via onAddPlayer hook', { playerName: cleanName });
           const res = await onAddPlayer(validation.data as any);
@@ -221,6 +226,9 @@ export function AddPlayerModal({
           logger.info('Player sync complete', { playerId: generatedId });
         }
       });
+
+      // Race between the add operation and timeout
+      await Promise.race([addPlayerPromise, timeoutPromise]);
 
       onPlayerAdded?.(createdPlayer || (validation.data as any));
       toast.success(`🏏 ${cleanName} added to the Live Auction pool!`);
