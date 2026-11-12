@@ -7,7 +7,6 @@ import { CategoryPlayerGrid } from '@/components/auction/CategoryPlayerGrid';
 import { TeamPurseList } from '@/components/auction/TeamPurseList';
 import { AdminAuctionDesk } from '@/components/auction/AdminAuctionDesk';
 import { ExportRegistrationsDialog } from '@/components/cricket/ExportRegistrationsDialog';
-import { TournamentSwitchAnimation } from '@/components/auction/TournamentSwitchAnimation';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,8 +28,6 @@ export default function Auction() {
   const { activeTournamentId, setActiveTournamentId } = useTournament();
   const [activeTab, setActiveTab] = useState<'spotlight' | 'categories' | 'teams' | 'admin'>('spotlight');
   const [isResetting, setIsResetting] = useState(false);
-  const [showAnimation, setShowAnimation] = useState(false);
-  const [lastTournament, setLastTournament] = useState(activeTournamentId);
 
   const {
     currentPlayer,
@@ -90,24 +87,13 @@ export default function Auction() {
   };
 
   const handleTournamentChange = (newTournament: string) => {
-    if (newTournament !== lastTournament) {
-      setShowAnimation(true);
-      setLastTournament(newTournament);
-      setActiveTournamentId(newTournament);
-    }
+    setActiveTournamentId(newTournament);
   };
 
   const isAllSold = playerPool.length > 0 && playerPool.every((p) => p.auctionStatus === 'sold');
 
   return (
     <div className="relative min-h-screen bg-background pb-8">
-      {/* Tournament Switch Animation */}
-      <TournamentSwitchAnimation
-        isVisible={showAnimation}
-        direction={lastTournament === 'kapl-3-womens' ? 'ltr' : 'rtl'}
-        onAnimationComplete={() => setShowAnimation(false)}
-      />
-
       {/* Ambient Stadium Lighting Mesh */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-amber-500/10 via-emerald-500/5 to-transparent blur-3xl opacity-60" />

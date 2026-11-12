@@ -24,11 +24,10 @@ export function TournamentSwitchAnimation({
   }, [isVisible, onAnimationComplete]);
 
   if (!isVisible) {
-    console.log('🎬 Animation not visible');
     return null;
   }
 
-  console.log('🎬 Rendering tournament animation:', direction);
+  console.log('🎬🎬🎬 ANIMATION RENDERING 🎬🎬🎬', { isVisible, direction });
 
   return (
     <div className={`tournament-switch-animation ${direction}`} style={{ display: 'block' }}>
