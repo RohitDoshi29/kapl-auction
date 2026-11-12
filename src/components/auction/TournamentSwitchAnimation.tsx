@@ -14,17 +14,24 @@ export function TournamentSwitchAnimation({
 }: TournamentSwitchAnimationProps) {
   useEffect(() => {
     if (isVisible) {
+      console.log('🎬 Tournament animation started:', direction);
       const timer = setTimeout(() => {
+        console.log('🎬 Tournament animation completed');
         onAnimationComplete?.();
       }, 1200);
       return () => clearTimeout(timer);
     }
   }, [isVisible, onAnimationComplete]);
 
-  if (!isVisible) return null;
+  if (!isVisible) {
+    console.log('🎬 Animation not visible');
+    return null;
+  }
+
+  console.log('🎬 Rendering tournament animation:', direction);
 
   return (
-    <div className={`tournament-switch-animation ${direction}`}>
+    <div className={`tournament-switch-animation ${direction}`} style={{ display: 'block' }}>
       {/* Cricket Batter */}
       <svg
         className="cricket-batter"
