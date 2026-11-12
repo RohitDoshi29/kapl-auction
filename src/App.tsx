@@ -3,35 +3,26 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TournamentProvider } from "@/contexts/TournamentContext";
-import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 
-// Eagerly loaded critical landing page
-import Index from "./pages/Index";
+// Eagerly loaded Auction page
+import Auction from "./pages/Auction";
 
-// Lazy-loaded code-split pages for high performance
-const Admin = lazy(() => import("./pages/Admin"));
-const PointsTable = lazy(() => import("./pages/PointsTable"));
-const TournamentStructure = lazy(() => import("./pages/TournamentStructure"));
-const TeamStats = lazy(() => import("./pages/TeamStats"));
-const PlayersDirectory = lazy(() => import("./pages/PlayersDirectory"));
-const PlayerProfile = lazy(() => import("./pages/PlayerProfile"));
-const Auction = lazy(() => import("./pages/Auction"));
+// Lazy-loaded auth, settings & health routes
 const Auth = lazy(() => import("./pages/Auth"));
-const Profile = lazy(() => import("./pages/Profile"));
-const RegisterPlayer = lazy(() => import("./pages/RegisterPlayer"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+const Settings = lazy(() => import("./pages/Settings"));
+const HealthCheckRoute = lazy(() => import('./pages/Health'));
 
 // Optimized Query Client with aggressive edge caching for high concurrency
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes cache for static rosters and tournament tables
-      gcTime: 10 * 60 * 1000,   // 10 minutes garbage collection
-      refetchOnWindowFocus: false, // Prevent redundant mobile background refetches
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
       retry: 2,
     },
   },
@@ -42,17 +33,15 @@ function PageLoadingFallback() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
       <div className="relative mb-4">
         <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center animate-pulse">
-          <span className="text-2xl">🏏</span>
+          <span className="text-2xl">🔨</span>
         </div>
         <div className="absolute inset-0 rounded-2xl border-2 border-primary border-t-transparent animate-spin" />
       </div>
-      <p className="text-sm font-semibold text-foreground tracking-tight">KAPL 3.0</p>
-      <p className="text-xs text-muted-foreground mt-0.5">Loading stadium experience...</p>
+      <p className="text-sm font-semibold text-foreground tracking-tight">KAPL 3.0 Auction</p>
+      <p className="text-xs text-muted-foreground mt-0.5">Loading auction stage...</p>
     </div>
   );
 }
-
-const HealthCheckRoute = lazy(() => import('./pages/Health'));
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -68,31 +57,14 @@ const App = () => (
                   {/* Health check endpoint */}
                   <Route path="/health" element={<HealthCheckRoute />} />
 
-                  {/* Public Auth & Tournament Spectator Routes */}
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/register" element={<RegisterPlayer />} />
-                  <Route path="/player-registration" element={<RegisterPlayer />} />
-                  <Route path="/" element={<Index />} />
-                  <Route path="/players" element={<PlayersDirectory />} />
-                  <Route path="/players/:id" element={<PlayerProfile />} />
+                  {/* Auction-only routes */}
+                  <Route path="/" element={<Auction />} />
                   <Route path="/auction" element={<Auction />} />
-                  <Route path="/points" element={<PointsTable />} />
-                  <Route path="/bracket" element={<TournamentStructure />} />
-                  <Route path="/stats" element={<TeamStats />} />
-                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/settings" element={<Settings />} />
 
-                  {/* Protected Admin & Scoring Route */}
-                  <Route
-                    path="/admin"
-                    element={
-                      <AuthGuard allowedRoles={['admin', 'co_admin']}>
-                        <Admin />
-                      </AuthGuard>
-                    }
-                  />
-
-                  {/* Fallback */}
-                  <Route path="*" element={<NotFound />} />
+                  {/* Redirect all other paths to Auction */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>
             </ErrorBoundary>

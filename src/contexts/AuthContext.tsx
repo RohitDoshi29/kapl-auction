@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { PlayerRecord, PlayerRole } from '@/lib/cricketTypes';
-import { generateAuctionPlayers } from '@/lib/mockPlayersData';
+import { getTournamentPlayerId } from '@/lib/utils';
 import { saveToPlayerVault } from '@/lib/exportRegistrations';
 
 export const isValidUuid = (id?: string | null): boolean =>
@@ -10,12 +10,14 @@ export const isValidUuid = (id?: string | null): boolean =>
 
 export async function syncPlayerToAuctionAndTournament(playerRecord: PlayerRecord) {
   try {
-    const targetTournaments = ['kapl-3-mens', 'kapl-3-womens'];
+    const targetTournaments =
+      !playerRecord.tournamentId || playerRecord.tournamentId === 'all'
+        ? ['kapl-3-mens', 'kapl-3-womens']
+        : [playerRecord.tournamentId];
     localStorage.removeItem('kapl_all_players_cleared');
-    localStorage.removeItem('kapl_everything_reset_kapl-3-mens');
-    localStorage.removeItem('kapl_everything_reset_kapl-3-womens');
+    targetTournaments.forEach((tId) => localStorage.removeItem(`kapl_everything_reset_${tId}`));
 
-    // 0. Save permanently to unresettable registration vault
+    // 0. Save permanently to registration vault
     saveToPlayerVault(playerRecord);
 
     // 1. Update master kapl_registered_players
@@ -31,9 +33,8 @@ export async function syncPlayerToAuctionAndTournament(playerRecord: PlayerRecor
     }
     localStorage.setItem('kapl_registered_players', JSON.stringify(regList));
 
-    // 2. Update auction pool across BOTH tournaments so players enter both leagues
+    // 2. Update auction pool for the target league(s) while preserving existing auction outcomes
     for (const tId of targetTournaments) {
-      const isReset = typeof window !== 'undefined' && localStorage.getItem(`kapl_auction_manually_reset_${tId}`) === 'true';
       const auctionRaw = localStorage.getItem(`kapl_auction_players_${tId}`);
       let auctionList: PlayerRecord[] = [];
       if (auctionRaw) {
@@ -44,20 +45,17 @@ export async function syncPlayerToAuctionAndTournament(playerRecord: PlayerRecor
           }
         } catch {}
       }
-      if (auctionList.length === 0 && isReset) {
-        auctionList = generateAuctionPlayers(tId);
-      }
-      const tournRecordId = tId === 'kapl-3-womens' ? `${playerRecord.id}_w` : playerRecord.id;
+      const tournRecordId = getTournamentPlayerId(playerRecord.id, tId, playerRecord.name);
       const tournRecord: PlayerRecord = {
         ...playerRecord,
-        id: tournRecordId,
+        id: tournRecordId || playerRecord.id,
         tournamentId: tId,
       };
       const aucIdx = auctionList.findIndex(
         (p) => p.id === tournRecord.id || (p.userId && tournRecord.userId && p.userId === tournRecord.userId)
       );
       if (aucIdx >= 0) {
-        auctionList[aucIdx] = { ...auctionList[aucIdx], ...tournRecord };
+        auctionList[aucIdx] = { ...tournRecord, ...auctionList[aucIdx], id: tournRecord.id, tournamentId: tId };
       } else {
         auctionList.push(tournRecord);
       }
@@ -99,18 +97,19 @@ export async function syncPlayerToAuctionAndTournament(playerRecord: PlayerRecor
     // 4. Cross-tab synchronization via BroadcastChannel
     try {
       if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+        const broadcastTournId = playerRecord.tournamentId || 'all';
         const tabChannel = new BroadcastChannel('kapl-shared-tab-channel');
         tabChannel.postMessage({
           event: 'auction_player_added',
           player: playerRecord,
-          tournamentId: 'all',
+          tournamentId: broadcastTournId,
         });
 
         const aucTabChannel = new BroadcastChannel('kapl_auction_tab_sync');
         aucTabChannel.postMessage({
           event: 'auction_player_added',
           player: playerRecord,
-          tournamentId: 'all',
+          tournamentId: broadcastTournId,
         });
 
         setTimeout(() => {
@@ -227,11 +226,13 @@ interface AuthContextType {
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: Error | null }>;
   refreshUserRole: () => Promise<void>;
   assignUserRole: (userId: string, role: UserRole) => Promise<{ error: Error | null }>;
+  revokeUserRole: (userId: string, role?: UserRole) => Promise<{ error: Error | null }>;
   assignRoleByEmail: (
     email: string,
     role: UserRole,
-    details?: { title?: string; teamName?: string; teamId?: string; assignedBy?: string }
+    details?: { title?: string; teamName?: string; teamId?: string; assignedBy?: string; userId?: string }
   ) => Promise<{ error: Error | null }>;
+  revokeRoleByEmail: (email: string, role?: UserRole) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -350,11 +351,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return 'admin';
     }
 
-    // Rohit Doshi Colg is permanent team owner of Kapil's Warriors
-    if (cleanEmail === 'rohitdoshicolg@gmail.com') {
-      return 'owner';
-    }
-
     // Check pre-assigned role by email in localStorage
     if (cleanEmail) {
       try {
@@ -374,7 +370,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const metaMap = JSON.parse(localStorage.getItem('kapl_team_metadata') || '{}');
         for (const tId of Object.keys(metaMap)) {
           const meta = metaMap[tId];
-          if (meta.ownerEmail && meta.ownerEmail.toLowerCase().trim() === cleanEmail) {
+          if (meta?.ownerEmail && String(meta.ownerEmail).toLowerCase().trim() === cleanEmail) {
             return 'owner';
           }
         }
@@ -382,33 +378,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      if (!isValidUuid(userId)) {
-        return 'player';
-      }
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
+      if (isValidUuid(userId)) {
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId);
 
-      if (error) {
-        console.error('Error checking user role:', error);
-        return null;
+        if (!error && data && data.length > 0) {
+          const roles = data.map(r => r.role);
+          if (roles.includes('admin')) return 'admin';
+          if (roles.includes('co_admin')) return 'co_admin';
+          if (roles.includes('primary_scorer')) return 'primary_scorer';
+          if (roles.includes('secondary_scorer')) return 'secondary_scorer';
+          if (roles.includes('owner')) return 'owner';
+          if (roles.includes('captain')) return 'captain';
+          if (roles.includes('player')) return 'player';
+        }
       }
 
-      const roles = data?.map(r => r.role) || [];
-      if (roles.includes('admin')) return 'admin';
-      if (roles.includes('co_admin')) return 'co_admin';
-      if (roles.includes('primary_scorer')) return 'primary_scorer';
-      if (roles.includes('secondary_scorer')) return 'secondary_scorer';
-      if (roles.includes('owner')) return 'owner';
-      if (roles.includes('captain')) return 'captain';
-      if (roles.includes('player')) return 'player';
-      if (roles.includes('user')) return 'player';
+      // Check Supabase teams table so Team Owner assignments by email or user UUID work across devices
+      if (cleanEmail || isValidUuid(userId)) {
+        const { data: teamRows } = await supabase
+          .from('teams')
+          .select('id, owner_email, owner_user_id');
+
+        if (teamRows && teamRows.length > 0) {
+          const ownsTeam = teamRows.some((t) => {
+            const matchesEmail = cleanEmail && (t.owner_email || '').toLowerCase().trim() === cleanEmail;
+            const matchesUuid = isValidUuid(userId) && t.owner_user_id === userId;
+            return Boolean(matchesEmail || matchesUuid);
+          });
+          if (ownsTeam) return 'owner';
+        }
+      }
 
       return 'player';
     } catch (err) {
       console.error('Error in fetchUserRole:', err);
-      return null;
+      return isValidUuid(userId) ? null : 'player';
     }
   }, []);
 
@@ -584,38 +591,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, profile, fetchUserProfile]);
 
-  // Seed default owner assignment for rohitdoshicolg@gmail.com
-  useEffect(() => {
-    try {
-      const emailRoles = JSON.parse(localStorage.getItem('kapl_email_roles') || '{}');
-      if (!emailRoles['rohitdoshicolg@gmail.com']) {
-        emailRoles['rohitdoshicolg@gmail.com'] = 'owner';
-        localStorage.setItem('kapl_email_roles', JSON.stringify(emailRoles));
-      }
-
-      const assignments = JSON.parse(localStorage.getItem('kapl_role_assignments') || '{}');
-      if (!assignments['rohitdoshicolg@gmail.com']) {
-        assignments['rohitdoshicolg@gmail.com'] = {
-          email: 'rohitdoshicolg@gmail.com',
-          role: 'owner',
-          title: 'Franchise Team Owner',
-          teamName: "Kapil's Warriors",
-          teamId: 'a1',
-          assignedBy: 'Rohit Doshi (Main Admin)',
-          assignedAt: new Date().toISOString(),
-        };
-        localStorage.setItem('kapl_role_assignments', JSON.stringify(assignments));
-      }
-
-      const teamA1 = JSON.parse(localStorage.getItem('kapl_team_meta_a1') || '{}');
-      if (!teamA1.ownerEmail) {
-        teamA1.ownerName = 'Rohit Doshi';
-        teamA1.ownerEmail = 'rohitdoshicolg@gmail.com';
-        localStorage.setItem('kapl_team_meta_a1', JSON.stringify(teamA1));
-      }
-    } catch {}
-  }, []);
-
   useEffect(() => {
     let isMounted = true;
 
@@ -647,21 +622,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const cleanEmail = (effectiveSession.user.email || '').toLowerCase().trim();
           if (cleanEmail === 'rohit.doshi2007@gmail.com') {
             setUserRole('admin');
-          } else if (cleanEmail === 'rohitdoshicolg@gmail.com') {
-            setUserRole('owner');
           }
           const [role, prof] = await Promise.all([
             fetchUserRole(effectiveSession.user.id, effectiveSession.user.email),
             fetchUserProfile(effectiveSession.user),
           ]);
           if (isMounted) {
-            setUserRole(
-              cleanEmail === 'rohit.doshi2007@gmail.com'
-                ? 'admin'
-                : cleanEmail === 'rohitdoshicolg@gmail.com'
-                ? 'owner'
-                : role
-            );
+            setUserRole(cleanEmail === 'rohit.doshi2007@gmail.com' ? 'admin' : role);
             setProfile(prof);
             setIsLoading(false);
           }
@@ -694,8 +661,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cleanEmail = (session.user.email || '').toLowerCase().trim();
         if (cleanEmail === 'rohit.doshi2007@gmail.com') {
           setUserRole('admin');
-        } else if (cleanEmail === 'rohitdoshicolg@gmail.com') {
-          setUserRole('owner');
         }
         try {
           const [role, prof] = await Promise.all([
@@ -703,13 +668,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             fetchUserProfile(session.user),
           ]);
           if (isMounted) {
-            setUserRole(
-              cleanEmail === 'rohit.doshi2007@gmail.com'
-                ? 'admin'
-                : cleanEmail === 'rohitdoshicolg@gmail.com'
-                ? 'owner'
-                : role
-            );
+            setUserRole(cleanEmail === 'rohit.doshi2007@gmail.com' ? 'admin' : role);
             setProfile(prof);
             setIsLoading(false);
           }
@@ -1171,39 +1130,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error ? new Error(error.message) : null };
   }, []);
 
-  const assignUserRole = useCallback(async (userId: string, role: UserRole) => {
-    if (!role) return { error: null };
+  const revokeUserRole = useCallback(async (userId: string, role?: UserRole) => {
     if (!isValidUuid(userId)) return { error: null };
     try {
-      const { data: existing } = await supabase
+      const baseQuery = supabase
         .from('user_roles')
-        .select('id')
-        .eq('user_id', userId)
-        .limit(1);
+        .delete()
+        .eq('user_id', userId);
 
-      let err: any = null;
-      if (existing && existing.length > 0) {
-        const { error } = await supabase
-          .from('user_roles')
-          .update({ role: role as any })
-          .eq('user_id', userId);
-        err = error;
-      } else {
-        const { error } = await supabase
-          .from('user_roles')
-          .insert({ user_id: userId, role: role as any });
-        err = error;
+      const { error } = role && role !== 'player' && role !== 'user'
+        ? await baseQuery.eq('role', role as any)
+        : await baseQuery.in('role', ['co_admin', 'owner', 'primary_scorer', 'secondary_scorer', 'captain'] as any);
+
+      return { error: error ? new Error(error.message) : null };
+    } catch (e: any) {
+      return { error: new Error(e.message || 'Failed to revoke role') };
+    }
+  }, []);
+
+  const assignUserRole = useCallback(async (userId: string, role: UserRole) => {
+    if (!isValidUuid(userId)) return { error: null };
+    if (!role || role === 'player' || role === 'user') {
+      return revokeUserRole(userId);
+    }
+    try {
+      const { data: existing, error: selErr } = await supabase
+        .from('user_roles')
+        .select('id, role')
+        .eq('user_id', userId);
+
+      if (selErr) {
+        return { error: new Error(selErr.message) };
       }
-      return { error: err ? new Error(err.message) : null };
+
+      if (existing && existing.some((r) => r.role === (role as any))) {
+        return { error: null };
+      }
+
+      // Remove stale elevated roles first to keep a single effective elevated role
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .in('role', ['co_admin', 'owner', 'primary_scorer', 'secondary_scorer', 'captain'] as any);
+
+      const { error } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role: role as any });
+      return { error: error ? new Error(error.message) : null };
     } catch (e: any) {
       return { error: new Error(e.message || 'Failed to assign role') };
     }
-  }, []);
+  }, [revokeUserRole]);
 
   const assignRoleByEmail = useCallback(async (
     email: string,
     role: UserRole,
-    details?: { title?: string; teamName?: string; teamId?: string; assignedBy?: string }
+    details?: { title?: string; teamName?: string; teamId?: string; assignedBy?: string; userId?: string }
   ) => {
     if (!email.trim() || !role) return { error: null };
     try {
@@ -1219,6 +1202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         title: details?.title,
         teamName: details?.teamName,
         teamId: details?.teamId,
+        userId: details?.userId,
         assignedBy: details?.assignedBy || 'Rohit Doshi (Main Admin)',
         assignedAt: new Date().toISOString(),
       };
@@ -1231,6 +1215,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: null };
     } catch (e: any) {
       return { error: new Error(e.message || 'Failed to assign role by email') };
+    }
+  }, [user]);
+
+  const revokeRoleByEmail = useCallback(async (email: string, role?: UserRole) => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail) return { error: null };
+    try {
+      const storedRoles = JSON.parse(localStorage.getItem('kapl_email_roles') || '{}');
+      if (!role || storedRoles[cleanEmail] === role || role === 'owner' || role === 'co_admin') {
+        delete storedRoles[cleanEmail];
+        localStorage.setItem('kapl_email_roles', JSON.stringify(storedRoles));
+      }
+
+      const assignments = JSON.parse(localStorage.getItem('kapl_role_assignments') || '{}');
+      if (!role || assignments[cleanEmail]?.role === role || role === 'owner' || role === 'co_admin') {
+        delete assignments[cleanEmail];
+        localStorage.setItem('kapl_role_assignments', JSON.stringify(assignments));
+      }
+
+      if (!role || role === 'co_admin') {
+        const coAdmins = JSON.parse(localStorage.getItem('kapl_co_admins') || '[]');
+        if (Array.isArray(coAdmins)) {
+          const filtered = coAdmins.filter(
+            (c: any) => (c?.email || '').toLowerCase().trim() !== cleanEmail
+          );
+          localStorage.setItem('kapl_co_admins', JSON.stringify(filtered));
+        }
+      }
+
+      if (!role || role === 'owner') {
+        const metaMap = JSON.parse(localStorage.getItem('kapl_team_metadata') || '{}');
+        let metaChanged = false;
+        for (const tId of Object.keys(metaMap)) {
+          const meta = metaMap[tId];
+          if ((meta?.ownerEmail || '').toLowerCase().trim() === cleanEmail) {
+            metaMap[tId] = {
+              ...meta,
+              ownerName: null,
+              ownerEmail: null,
+              ownerUserId: null,
+            };
+            metaChanged = true;
+            localStorage.removeItem(`kapl_team_meta_${tId}`);
+          }
+        }
+        if (metaChanged) {
+          localStorage.setItem('kapl_team_metadata', JSON.stringify(metaMap));
+        }
+
+        for (const tId of ['kapl-3-mens', 'kapl-3-womens']) {
+          const rawTeams = localStorage.getItem(`kapl_auction_teams_${tId}`);
+          if (rawTeams) {
+            const parsed = JSON.parse(rawTeams);
+            if (Array.isArray(parsed)) {
+              const cleaned = parsed.map((t: any) =>
+                (t?.ownerEmail || '').toLowerCase().trim() === cleanEmail
+                  ? { ...t, ownerName: undefined, ownerEmail: null, ownerUserId: null }
+                  : t
+              );
+              localStorage.setItem(`kapl_auction_teams_${tId}`, JSON.stringify(cleaned));
+            }
+          }
+        }
+
+        const registeredAccounts = JSON.parse(localStorage.getItem('kapl_registered_accounts') || '{}');
+        if (registeredAccounts[cleanEmail] && registeredAccounts[cleanEmail].role === 'owner') {
+          registeredAccounts[cleanEmail].role = 'player';
+          localStorage.setItem('kapl_registered_accounts', JSON.stringify(registeredAccounts));
+        }
+      }
+
+      if (user && user.email && user.email.toLowerCase().trim() === cleanEmail) {
+        setUserRole('player');
+      }
+      return { error: null };
+    } catch (e: any) {
+      return { error: new Error(e.message || 'Failed to revoke role by email') };
     }
   }, [user]);
 
@@ -1304,7 +1365,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         updateProfile,
         refreshUserRole,
         assignUserRole,
+        revokeUserRole,
         assignRoleByEmail,
+        revokeRoleByEmail,
       }}
     >
       {children}

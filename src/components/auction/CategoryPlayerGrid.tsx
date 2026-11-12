@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { PlayerRecord, Team, PlayerRole } from '@/lib/cricketTypes';
+import { formatPlayerRole, formatMoney } from '@/lib/utils';
 import { AUCTION_CATEGORIES } from '@/hooks/useAuction';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,8 +29,6 @@ export function CategoryPlayerGrid({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'sold' | 'unsold'>('all');
 
-  const formatMoney = (val: number) => `₹${val.toLocaleString('en-IN')}`;
-
   // Filter players by selected category, status, and search query
   const filteredPlayers = useMemo(() => {
     return (players || []).filter((p) => {
@@ -44,11 +43,11 @@ export function CategoryPlayerGrid({
       // Search query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
-        const matchesName = p.name.toLowerCase().includes(query);
+        const matchesName = (p.name || '').toLowerCase().includes(query);
         const matchesJersey = p.jerseyNumber?.toString().includes(query);
-        const matchesRole = p.role.toLowerCase().includes(query);
+        const matchesRole = (p.role || '').toLowerCase().includes(query);
         const assignedTeam = (teams || []).find((t) => t.id === p.teamId);
-        const matchesTeam = assignedTeam?.name.toLowerCase().includes(query);
+        const matchesTeam = (assignedTeam?.name || '').toLowerCase().includes(query);
         if (!matchesName && !matchesJersey && !matchesRole && !matchesTeam) {
           return false;
         }
@@ -188,7 +187,7 @@ export function CategoryPlayerGrid({
                       <Avatar className="w-11 h-11 border border-white/10 shrink-0 shadow-xs">
                         <AvatarImage src={player.photoUrl || undefined} alt={player.name} />
                         <AvatarFallback className="bg-amber-500/10 text-amber-400 text-xs font-black">
-                          {player.name.slice(0, 2).toUpperCase()}
+                          {(player.name || 'P').slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
 
@@ -205,7 +204,7 @@ export function CategoryPlayerGrid({
                         </div>
 
                         <span className="text-[11px] text-muted-foreground block truncate capitalize">
-                          {player.role.replace('_', ' ')} • Base: {formatMoney(player.basePrice)}
+                          {formatPlayerRole(player.role)} • Base: {formatMoney(player.basePrice)}
                         </span>
 
                         {isSold && assignedTeam && (

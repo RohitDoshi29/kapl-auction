@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -68,11 +68,17 @@ export function AddPlayerModal({
   const [basePrice, setBasePrice] = useState<number>(100);
   const [jerseyNumber, setJerseyNumber] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
-  const [gender, setGender] = useState<'male' | 'female'>('male');
-  const [targetTourn, setTargetTourn] = useState<string>('all');
+  const defaultGender = tournamentId === 'kapl-3-womens' ? 'female' : 'male';
+  const [gender, setGender] = useState<'male' | 'female'>(defaultGender);
+  const [targetTourn, setTargetTourn] = useState<string>(tournamentId || 'kapl-3-mens');
   const [photoUrl, setPhotoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isPending, executeRequest } = useRequestQueue();
+
+  useEffect(() => {
+    setTargetTourn(tournamentId || 'kapl-3-mens');
+    setGender(tournamentId === 'kapl-3-womens' ? 'female' : 'male');
+  }, [tournamentId]);
 
   const resetForm = () => {
     setName('');
@@ -82,8 +88,8 @@ export function AddPlayerModal({
     setBasePrice(100);
     setJerseyNumber('');
     setMobileNumber('');
-    setGender('male');
-    setTargetTourn('all');
+    setGender(tournamentId === 'kapl-3-womens' ? 'female' : 'male');
+    setTargetTourn(tournamentId || 'kapl-3-mens');
     setPhotoUrl('');
   };
 

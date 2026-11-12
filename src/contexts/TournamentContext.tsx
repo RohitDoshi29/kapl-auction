@@ -45,18 +45,6 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
           setTournaments(DEFAULT_TOURNAMENTS);
         } else if (data && data.length > 0) {
           setTournaments(data as unknown as Tournament[]);
-          // Sync any database fixtures to local cache
-          data.forEach((t: any) => {
-            if (t?.rules?.fixtures && Array.isArray(t.rules.fixtures)) {
-              try {
-                localStorage.setItem(`kapl_fixtures_${t.id}`, JSON.stringify(t.rules.fixtures));
-                localStorage.setItem(`kapl_fixtures_customized_${t.id}`, 'true');
-                window.dispatchEvent(new CustomEvent('kapl-fixtures-updated', {
-                  detail: { tournamentId: t.id, fixtures: t.rules.fixtures }
-                }));
-              } catch (e) {}
-            }
-          });
         }
       } catch (err) {
         console.warn('Network error loading tournaments, using defaults:', err);
@@ -74,16 +62,6 @@ export function TournamentProvider({ children }: { children: React.ReactNode }) 
         if (payload.eventType === 'UPDATE') {
           const updated = payload.new as unknown as Tournament;
           setTournaments(prev => prev.map(t => t.id === updated.id ? updated : t));
-          if ((updated.rules as any)?.fixtures && Array.isArray((updated.rules as any).fixtures)) {
-            const f = (updated.rules as any).fixtures;
-            try {
-              localStorage.setItem(`kapl_fixtures_${updated.id}`, JSON.stringify(f));
-              localStorage.setItem(`kapl_fixtures_customized_${updated.id}`, 'true');
-              window.dispatchEvent(new CustomEvent('kapl-fixtures-updated', {
-                detail: { tournamentId: updated.id, fixtures: f }
-              }));
-            } catch (e) {}
-          }
         } else if (payload.eventType === 'INSERT') {
           const inserted = payload.new as unknown as Tournament;
           setTournaments(prev => [...prev.filter(t => t.id !== inserted.id), inserted]);

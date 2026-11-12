@@ -1,7 +1,7 @@
 {
-  "name": "KAPL 3.0 — Premier Cricket League",
-  "short_name": "KAPL 3.0",
-  "description": "Live cricket tournament scores, real-time player auction, standings, and player directory for KAPL 3.0.",
+  "name": "KAPL 3.0 — Live Player Auction",
+  "short_name": "KAPL Auction",
+  "description": "Real-time player auction for KAPL 3.0.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0E17",

@@ -48,7 +48,7 @@ export default function Health() {
           realtimeAvailable,
           details: {
             uptime: Math.floor(performance.now() / 1000),
-            buildTime: __BUILD_TIME__ || 'unknown',
+            buildTime: typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'unknown',
           },
         };
 

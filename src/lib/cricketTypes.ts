@@ -320,7 +320,7 @@ const createDefaultPlayers = (teamId: string, count: number = 10): Player[] =>
   }));
 
 export const DEFAULT_TEAMS: Team[] = [
-  { id: 'a1', tournamentId: 'kapl-3-mens', name: 'Kapil\'s Warriors', group: 'A', logo: null, primaryColor: '0 84% 60%', players: [], playerCount: 0, remainingPurse: 10000, initialPurse: 10000, maxSquadSize: 10, ownerName: 'Rohit Doshi', ownerEmail: 'rohitdoshicolg@gmail.com' },
+  { id: 'a1', tournamentId: 'kapl-3-mens', name: 'Kapil\'s Warriors', group: 'A', logo: null, primaryColor: '0 84% 60%', players: [], playerCount: 0, remainingPurse: 10000, initialPurse: 10000, maxSquadSize: 10 },
   { id: 'a2', tournamentId: 'kapl-3-mens', name: 'Kapil Falcons', group: 'A', logo: null, primaryColor: '174 72% 40%', players: [], playerCount: 0, remainingPurse: 10000, initialPurse: 10000, maxSquadSize: 10 },
   { id: 'a3', tournamentId: 'kapl-3-mens', name: 'Insta Paltans', group: 'A', logo: null, primaryColor: '267 84% 51%', players: [], playerCount: 0, remainingPurse: 10000, initialPurse: 10000, maxSquadSize: 10 },
   { id: 'a4', tournamentId: 'kapl-3-mens', name: 'Kapil\'s Devils', group: 'A', logo: null, primaryColor: '222 47% 31%', players: [], playerCount: 0, remainingPurse: 10000, initialPurse: 10000, maxSquadSize: 10 },

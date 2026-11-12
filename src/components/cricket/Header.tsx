@@ -7,14 +7,14 @@ import { isSoundEnabled, setSoundEnabled, playBoundaryFour } from '@/lib/soundEf
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LogOut, User, Sparkles, Sun, Moon, Volume2, VolumeX, Crown } from 'lucide-react';
+import { LogOut, User, Sparkles, Sun, Moon, Volume2, VolumeX, Crown, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { TournamentSwitcher } from './TournamentSwitcher';
 
 export function Header({ className }: { className?: string }) {
   const navigate = useNavigate();
-  const { user, userRole, signOut, isAuthenticated, profile } = useAuth();
+  const { user, userRole, signOut, isAuthenticated, isAdmin, profile } = useAuth();
   const { isSunlightMode, toggleSunlightMode } = useSunlightMode();
   const [soundOn, setSoundOn] = useState<boolean>(true);
 
@@ -54,7 +54,7 @@ export function Header({ className }: { className?: string }) {
       toast.error('Failed to sign out');
     } else {
       toast.success('Signed out successfully');
-      // Redirect to home page after sign out
+      // Redirect to auction page after sign out
       navigate('/');
     }
   };
@@ -94,7 +94,7 @@ export function Header({ className }: { className?: string }) {
           <div className="flex items-center gap-2.5 shrink-0">
             <Link to="/" className="group flex items-center gap-2">
               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-400 flex items-center justify-center shadow-lg shadow-amber-500/25 group-hover:scale-105 group-hover:shadow-amber-500/40 transition-all text-black font-black">
-                <span className="text-lg sm:text-xl">🏏</span>
+                <span className="text-lg sm:text-xl">🔨</span>
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
@@ -106,7 +106,7 @@ export function Header({ className }: { className?: string }) {
                   </Badge>
                 </div>
                 <p className="text-[10px] sm:text-[11px] text-muted-foreground font-medium tracking-wide hidden sm:block">
-                  Premier Cricket League
+                  Live Player Auction
                 </p>
               </div>
             </Link>
@@ -154,15 +154,25 @@ export function Header({ className }: { className?: string }) {
               )}
             </Button>
 
+            {/* Admin-only Settings Button (near account / login area) */}
+            {isAuthenticated && isAdmin && (
+              <Link to="/settings" title="Admin Settings & Role Access">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 sm:h-8.5 rounded-xl border-amber-500/35 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs px-2 sm:px-2.5 gap-1.5 shadow-xs touch-manipulation"
+                >
+                  <Settings className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">Settings</span>
+                </Button>
+              </Link>
+            )}
+
             {/* User Account / Auth */}
             {isAuthenticated && user ? (
-              <div className="flex items-center gap-1.5 sm:gap-2 bg-white/[0.04] hover:bg-white/[0.07] backdrop-blur-md border border-white/10 rounded-2xl pl-1.5 sm:pl-2 pr-2 py-1 shadow-sm transition-all">
-                <Link
-                  to="/profile"
-                  className="flex items-center gap-1.5 sm:gap-2 group min-w-0"
-                  title="View & Edit My Profile"
-                >
-                  <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-amber-500/40 group-hover:border-amber-400 transition-colors shadow-xs shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-white/[0.04] backdrop-blur-md border border-white/10 rounded-2xl pl-1.5 sm:pl-2 pr-2 py-1 shadow-sm transition-all">
+                <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                  <Avatar className="w-6 h-6 sm:w-7 sm:h-7 border border-amber-500/40 shadow-xs shrink-0">
                     {profile?.photoUrl && (
                       <AvatarImage src={profile.photoUrl} alt={profile.name || 'User avatar'} className="object-cover" />
                     )}
@@ -176,14 +186,14 @@ export function Header({ className }: { className?: string }) {
                   </Avatar>
 
                   <div className="flex flex-col text-left min-w-0">
-                    <span className="text-[10px] sm:text-[11px] font-bold text-foreground max-w-[70px] sm:max-w-[120px] md:max-w-[140px] truncate leading-tight group-hover:text-amber-400 transition-colors">
+                    <span className="text-[10px] sm:text-[11px] font-bold text-foreground max-w-[70px] sm:max-w-[120px] md:max-w-[140px] truncate leading-tight">
                       {profile?.name || user.email}
                     </span>
                     <div className="flex items-center gap-1 mt-0.5">
                       {getRoleBadge(userRole)}
                     </div>
                   </div>
-                </Link>
+                </div>
 
                 <div className="h-3.5 w-px bg-white/10 mx-0.5" />
 
@@ -202,14 +212,6 @@ export function Header({ className }: { className?: string }) {
                 <Link to="/auth" state={{ tab: 'signin' }}>
                   <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs font-bold hover:bg-white/[0.08] px-2 sm:px-2.5 touch-manipulation">
                     Sign In
-                  </Button>
-                </Link>
-                <Link to="/register">
-                  <Button
-                    size="sm"
-                    className="h-8 rounded-xl text-xs font-black shadow-md shadow-amber-500/20 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-black hover:opacity-95 px-2.5 sm:px-3 touch-manipulation"
-                  >
-                    Register
                   </Button>
                 </Link>
               </div>

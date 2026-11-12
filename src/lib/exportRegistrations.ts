@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { PlayerRecord } from './cricketTypes';
+import { getTournamentPlayerId } from './utils';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface RegistrationExportRow {
@@ -16,7 +17,7 @@ export interface RegistrationExportRow {
   'Auction Status': string;
   'Sold Price (₹)': string | number;
   'Allocated Team': string;
-  'Registration Date': string;
+  'Added Date': string;
   'Player ID': string;
 }
 
@@ -77,14 +78,119 @@ export function saveToPlayerVault(player: Partial<PlayerRecord> & { email?: stri
   }
 }
 
+const PLAYER_PURGE_MIGRATION_KEY = 'kapl_players_purged_v2';
+
+function purgeLegacyLocalPlayersOnce(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    if (localStorage.getItem(PLAYER_PURGE_MIGRATION_KEY) === 'true') {
+      return false;
+    }
+    const keysToClear = [
+      'kapl_player_vault',
+      'kapl_registered_players',
+      'kapl_auction_players_kapl-3-mens',
+      'kapl_auction_players_kapl-3-womens',
+      'kapl_auction_active_player_kapl-3-mens',
+      'kapl_auction_active_player_kapl-3-womens',
+      'kapl_auction_sales_kapl-3-mens',
+      'kapl_auction_sales_kapl-3-womens',
+      'kapl_auction_teams_kapl-3-mens',
+      'kapl_auction_teams_kapl-3-womens',
+      'kapl_teams',
+      'kapl_auction_manually_reset_kapl-3-mens',
+      'kapl_auction_manually_reset_kapl-3-womens',
+    ];
+    keysToClear.forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem('kapl_all_players_cleared', 'true');
+    localStorage.setItem(PLAYER_PURGE_MIGRATION_KEY, 'true');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function removePlayerFromLocalStores(playerId: string, tournamentId?: string) {
+  if (typeof window === 'undefined' || !playerId) return;
+  const baseId = playerId.replace(/_w$/, '');
+  const womensId = `${baseId}_w`;
+  const matchesTarget = (p: any) => p && (p.id === playerId || p.id === baseId || p.id === womensId);
+
+  try {
+    const filterStorageArray = (key: string) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        localStorage.setItem(key, JSON.stringify(parsed.filter((p: any) => !matchesTarget(p))));
+      }
+    };
+
+    filterStorageArray('kapl_player_vault');
+    filterStorageArray('kapl_registered_players');
+
+    const tournaments = tournamentId ? [tournamentId] : ['kapl-3-mens', 'kapl-3-womens'];
+    for (const tid of tournaments) {
+      filterStorageArray(`kapl_auction_players_${tid}`);
+      const salesRaw = localStorage.getItem(`kapl_auction_sales_${tid}`);
+      if (salesRaw) {
+        const parsedSales = JSON.parse(salesRaw);
+        if (Array.isArray(parsedSales)) {
+          localStorage.setItem(
+            `kapl_auction_sales_${tid}`,
+            JSON.stringify(parsedSales.filter((s: any) => s && s.playerId !== playerId && s.playerId !== baseId && s.playerId !== womensId))
+          );
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('removePlayerFromLocalStores notice:', e);
+  }
+}
+
+export function clearLocalPlayersForTournament(tournamentId: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const oppositeTid = tournamentId === 'kapl-3-womens' ? 'kapl-3-mens' : 'kapl-3-womens';
+    localStorage.setItem(`kapl_auction_players_${tournamentId}`, JSON.stringify([]));
+    localStorage.setItem(`kapl_auction_sales_${tournamentId}`, JSON.stringify([]));
+    localStorage.removeItem(`kapl_auction_active_player_${tournamentId}`);
+    localStorage.removeItem(`kapl_auction_teams_${tournamentId}`);
+    localStorage.removeItem(`kapl_auction_manually_reset_${tournamentId}`);
+
+    const filterForTournament = (key: string) => {
+      const raw = localStorage.getItem(key);
+      if (!raw) return 0;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return 0;
+      const remaining = parsed.filter((p: any) => {
+        if (!p) return false;
+        const pTid = p.tournamentId;
+        return pTid && pTid !== 'all' && pTid === oppositeTid;
+      });
+      localStorage.setItem(key, JSON.stringify(remaining));
+      return remaining.length;
+    };
+
+    const remainingVault = filterForTournament('kapl_player_vault');
+    const remainingReg = filterForTournament('kapl_registered_players');
+    if (remainingVault === 0 && remainingReg === 0) {
+      localStorage.setItem('kapl_all_players_cleared', 'true');
+    }
+  } catch (e) {
+    console.warn('clearLocalPlayersForTournament notice:', e);
+  }
+}
+
 /**
  * Automatically repairs and synchronizes local player state across tabs and reloads:
  * 1. Purges zombie clear flags ('kapl_all_players_cleared', etc.) if any vault or registered players exist.
  * 2. Keeps `kapl_player_vault` and `kapl_registered_players` bidirectional in sync.
- * 3. Populates both `kapl_auction_players_kapl-3-mens` and `kapl_auction_players_kapl-3-womens` so newly created players appear instantly in Auction without tab-switch data loss.
+ * 3. Populates league caches while respecting tournament assignments and preserving auction outcomes.
  */
 export function repairAndSyncLocalPlayerState() {
   if (typeof window === 'undefined') return;
+  if (purgeLegacyLocalPlayersOnce()) return;
   try {
     const vaultRaw = localStorage.getItem('kapl_player_vault');
     let vaultList: any[] = vaultRaw ? JSON.parse(vaultRaw) : [];
@@ -104,7 +210,7 @@ export function repairAndSyncLocalPlayerState() {
             const p = acc.profile;
             if (p.name && !vaultList.some((v: any) => v.name && v.name.toLowerCase() === p.name.toLowerCase())) {
               vaultList.push({
-                id: p.playerId || `p_u_${acc.id?.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)}`,
+                id: p.playerId || `p_u_${(acc.id || p.name || 'anon').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)}`,
                 name: p.name,
                 role: p.role || 'all_rounder',
                 battingStyle: p.battingStyle || 'Right-hand bat',
@@ -162,7 +268,10 @@ export function repairAndSyncLocalPlayerState() {
         let modified = false;
 
         masterList.forEach((p: any) => {
-          const expectedId = tid === 'kapl-3-womens' ? (p.id.endsWith('_w') ? p.id : `${p.id}_w`) : p.id.replace(/_w$/, '');
+          if (!p) return;
+          if (p.tournamentId && p.tournamentId !== 'all' && p.tournamentId !== tid) return;
+          const expectedId = getTournamentPlayerId(p.id, tid, p.name);
+          if (!expectedId) return;
           const existingIdx = aucList.findIndex((a: any) => a.id === expectedId || (a.name && p.name && a.name.toLowerCase() === p.name.toLowerCase()));
           const candidateRecord = {
             ...p,
@@ -172,7 +281,7 @@ export function repairAndSyncLocalPlayerState() {
             basePrice: Number(p.basePrice || 100),
           };
           if (existingIdx >= 0) {
-            aucList[existingIdx] = { ...aucList[existingIdx], ...candidateRecord };
+            aucList[existingIdx] = { ...candidateRecord, ...aucList[existingIdx], id: expectedId, tournamentId: tid };
             modified = true;
           } else {
             aucList.push(candidateRecord);
@@ -243,7 +352,7 @@ export async function getAllStoredRegistrations(): Promise<RegistrationExportRow
       'Auction Status': (record.auctionStatus || record.auction_status || 'pending').toUpperCase(),
       'Sold Price (₹)': record.soldPrice || record.sold_price ? Number(record.soldPrice || record.sold_price) : 'N/A',
       'Allocated Team': record.teamName || record.teamId || record.team_id || existing?.['Allocated Team'] || 'Unassigned',
-      'Registration Date': record.createdAt || record.created_at || record.registeredAt || existing?.['Registration Date'] || new Date().toLocaleDateString('en-IN'),
+      'Added Date': record.createdAt || record.created_at || record.registeredAt || existing?.['Added Date'] || new Date().toLocaleDateString('en-IN'),
       'Player ID': record.id || existing?.['Player ID'] || `p_${Date.now()}`,
     };
 
@@ -312,12 +421,12 @@ export async function exportRegistrationsToExcel(providedRows?: RegistrationExpo
   const rows = providedRows && providedRows.length > 0 ? providedRows : await getAllStoredRegistrations();
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const filename = `KAPL_3.0_Registered_Players_${timestamp}.xlsx`;
+  const filename = `KAPL_3.0_Auction_Players_${timestamp}.xlsx`;
 
   if (rows.length === 0) {
     const dummyRows = [
       {
-        'Player Name': 'No Registrations Recorded Yet',
+        'Player Name': 'No Auction Players Recorded Yet',
         'Email': '-',
         'Phone Number': '-',
         'Playing Role': '-',
@@ -330,13 +439,13 @@ export async function exportRegistrationsToExcel(providedRows?: RegistrationExpo
         'Auction Status': 'PENDING',
         'Sold Price (₹)': '-',
         'Allocated Team': '-',
-        'Registration Date': new Date().toLocaleDateString('en-IN'),
+        'Added Date': new Date().toLocaleDateString('en-IN'),
         'Player ID': '-',
       },
     ];
     const ws = XLSX.utils.json_to_sheet(dummyRows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Registrations');
+    XLSX.utils.book_append_sheet(wb, ws, 'Auction Players');
     XLSX.writeFile(wb, filename);
     return { count: 0, filename };
   }
@@ -358,13 +467,13 @@ export async function exportRegistrationsToExcel(providedRows?: RegistrationExpo
     { wch: 15 }, // Auction Status
     { wch: 15 }, // Sold Price
     { wch: 20 }, // Allocated Team
-    { wch: 18 }, // Registration Date
+    { wch: 18 }, // Added Date
     { wch: 18 }, // Player ID
   ];
   ws['!cols'] = colWidths;
 
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Player Registrations');
+  XLSX.utils.book_append_sheet(wb, ws, 'Auction Players');
   XLSX.writeFile(wb, filename);
 
   return { count: rows.length, filename };
@@ -377,14 +486,14 @@ export async function exportRegistrationsToText(providedRows?: RegistrationExpor
   const rows = providedRows && providedRows.length > 0 ? providedRows : await getAllStoredRegistrations();
 
   if (rows.length === 0) {
-    return `===========================================================\n       KAPL 3.0 TOURNAMENT - PLAYER REGISTRATION ARCHIVE    \n===========================================================\nExport Date: ${new Date().toLocaleString('en-IN')}\nTotal Registered Players: 0\n\nNo player registrations have been recorded yet.\n`;
+    return `===========================================================\n       KAPL 3.0 AUCTION - PLAYER POOL ARCHIVE             \n===========================================================\nExport Date: ${new Date().toLocaleString('en-IN')}\nTotal Auction Players: 0\n\nNo auction players have been recorded yet.\n`;
   }
 
   let text = `===========================================================\n`;
-  text += `       KAPL 3.0 TOURNAMENT - PLAYER REGISTRATION ARCHIVE    \n`;
+  text += `       KAPL 3.0 AUCTION - PLAYER POOL ARCHIVE             \n`;
   text += `===========================================================\n`;
   text += `Export Timestamp : ${new Date().toLocaleString('en-IN')}\n`;
-  text += `Total Registrations: ${rows.length}\n`;
+  text += `Total Auction Players: ${rows.length}\n`;
   text += `===========================================================\n\n`;
 
   // CSV-style header
@@ -397,11 +506,11 @@ export async function exportRegistrationsToText(providedRows?: RegistrationExpor
     text += `   - Role: ${r['Playing Role']} | Batting: ${r['Batting Style']} | Bowling: ${r['Bowling Style']}\n`;
     text += `   - Jersey: #${r['Jersey Number']} | Gender: ${r['Gender']} | Tournament: ${r['Tournament']}\n`;
     text += `   - Status: ${r['Auction Status']} | Base: ₹${r['Base Price (₹)']} | Sold: ₹${r['Sold Price (₹)']} | Team: ${r['Allocated Team']}\n`;
-    text += `   - ID: ${r['Player ID']} | Registered: ${r['Registration Date']}\n\n`;
+    text += `   - ID: ${r['Player ID']} | Added: ${r['Added Date']}\n\n`;
   });
 
   text += `===========================================================\n`;
-  text += `END OF REGISTRATION RECORDS (${rows.length} PLAYERS)\n`;
+  text += `END OF AUCTION PLAYER RECORDS (${rows.length} PLAYERS)\n`;
   text += `===========================================================\n`;
 
   return text;

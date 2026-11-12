@@ -9,9 +9,7 @@
     "build:staging": "vite build --mode staging",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "benchmark": "node scripts/load-test-benchmark.mjs",
-    "verify": "node scripts/ground-readiness-verification.mjs"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

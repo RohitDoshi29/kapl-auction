@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { useAuction } from '@/hooks/useAuction';
 import { useTournament } from '@/contexts/TournamentContext';
-import { Navigation } from '@/components/cricket/Navigation';
 import { Header } from '@/components/cricket/Header';
-import { MultiMatchLiveBar } from '@/components/cricket/MultiMatchLiveBar';
 import { SinglePlayerAuctionStage } from '@/components/auction/SinglePlayerAuctionStage';
 import { CategoryPlayerGrid } from '@/components/auction/CategoryPlayerGrid';
 import { TeamPurseList } from '@/components/auction/TeamPurseList';
@@ -24,7 +22,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Gavel, Wallet, Users, Radio, Sparkles, RotateCcw, Zap, UserPlus, FileSpreadsheet } from 'lucide-react';
+import { Gavel, Wallet, Users, Radio, Sparkles, RotateCcw, Trash2, Zap, FileSpreadsheet } from 'lucide-react';
 
 export default function Auction() {
   const { activeTournamentId, setActiveTournamentId } = useTournament();
@@ -53,7 +51,7 @@ export default function Auction() {
     setIsAutoAdvanceEnabled,
     salesHistory,
     initializeAuctionData,
-    autoCompleteAuction,
+    clearAllPlayers,
   } = useAuction(activeTournamentId || 'kapl-3-mens');
 
   const handleResetAuctionData = async () => {
@@ -72,34 +70,32 @@ export default function Auction() {
     }
   };
 
-  const handleAutoCompleteAuction = async () => {
+  const handleClearAllPlayers = async () => {
     setIsResetting(true);
     try {
-      const res = await autoCompleteAuction();
+      const res = await clearAllPlayers();
       if (res.success) {
         toast.success(res.message);
       } else {
-        toast.error(res.message);
+        toast.error(res.message || 'Failed to clear players');
       }
     } catch (e: any) {
-      toast.error('Failed to auto-complete auction: ' + e.message);
+      toast.error('Failed to clear players: ' + e.message);
     } finally {
       setIsResetting(false);
     }
   };
 
-  const isAllSold = playerPool.length >= 80 && playerPool.every((p) => p.auctionStatus === 'sold');
+  const isAllSold = playerPool.length > 0 && playerPool.every((p) => p.auctionStatus === 'sold');
 
   return (
-    <div className="relative min-h-screen bg-background pb-24 md:pb-8">
+    <div className="relative min-h-screen bg-background pb-8">
       {/* Ambient Stadium Lighting Mesh */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-amber-500/10 via-emerald-500/5 to-transparent blur-3xl opacity-60" />
       </div>
 
       <Header />
-      <Navigation />
-      <MultiMatchLiveBar />
 
       <main className="relative z-10 container mx-auto px-3 sm:px-4 py-3 sm:py-4 md:py-6 space-y-4 md:space-y-6">
         {/* Tournament Switcher & Live Status Header */}
@@ -139,17 +135,37 @@ export default function Auction() {
 
             {isAdmin && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isResetting}
-                  onClick={handleAutoCompleteAuction}
-                  className="h-10 sm:h-8 text-xs font-bold border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 gap-1.5 touch-manipulation"
-                >
-                  <Zap className={`w-3.5 h-3.5 text-emerald-400 ${isResetting ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">Auto-Complete (Test)</span>
-                  <span className="sm:hidden">Auto</span>
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isResetting || playerPool.length === 0}
+                      className="h-10 sm:h-8 text-xs font-bold border-rose-500/40 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 gap-1.5 touch-manipulation"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span className="hidden sm:inline">Clear Players</span>
+                      <span className="sm:hidden">Clear</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove All Players from Auction?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete all {playerPool.length} player{playerPool.length === 1 ? '' : 's'} from this auction division, empty team squads, and restore every franchise purse to ₹10,000.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleClearAllPlayers}
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+                      >
+                        Remove All Players
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -165,15 +181,14 @@ export default function Auction() {
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Reset Auction & Seed 80 Players?</AlertDialogTitle>
+                      <AlertDialogTitle>Reset Bids &amp; Franchise Purses?</AlertDialogTitle>
                       <AlertDialogDescription>
                         This will:
                         <ul className="list-disc list-inside mt-2 space-y-1 text-xs">
-                          <li>Purge existing players and insert 80 structured players (Player 1 to 80)</li>
-                          <li>Distribute roles (25 Batters, 25 Bowlers, 20 All-rounders, 10 Keepers)</li>
+                          <li>Reset all {playerPool.length} current auction players back to Pending status</li>
                           <li>Clear all team rosters (0 players allocated)</li>
-                          <li>Restore each team's purse to full ₹10,000</li>
-                          <li>Set auction spotlight to Player 1 ready for live bidding</li>
+                          <li>Restore each team&apos;s purse to full ₹10,000</li>
+                          <li>Clear recent bid history and restart spotlight</li>
                         </ul>
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -183,7 +198,7 @@ export default function Auction() {
                         onClick={handleResetAuctionData}
                         className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
                       >
-                        Confirm Reset & Seed
+                        Confirm Reset
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -195,7 +210,7 @@ export default function Auction() {
             {isAllSold ? (
               <span className="inline-flex items-center gap-1.5 bg-amber-500/15 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-full text-xs font-black shadow-xs tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                80/80 SOLD
+                {playerPool.length}/{playerPool.length} SOLD
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-full text-xs font-black shadow-xs tracking-wider">
@@ -337,7 +352,7 @@ export default function Auction() {
                 onRevertStatus={revertPlayerStatus}
                 onRemovePlayer={removePlayerFromAuction}
                 onResetAuction={handleResetAuctionData}
-                onAutoCompleteAuction={handleAutoCompleteAuction}
+                onClearAllPlayers={handleClearAllPlayers}
                 salesHistory={salesHistory}
                 onStartAcceleratedRound={startAcceleratedUnsoldRound}
                 autoAdvanceCountdown={autoAdvanceCountdown}

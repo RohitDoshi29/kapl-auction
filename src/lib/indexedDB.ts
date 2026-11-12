@@ -53,11 +53,9 @@ export async function saveAuctionSnapshot(snapshot: Omit<AuctionSnapshot, 'id'>)
     const store = transaction.objectStore('auction_snapshots');
 
     // Mark previous current snapshot as not current
-    const index = store.index('isCurrent');
-    const query = index.query(true);
     const previousSnapshots = await new Promise<AuctionSnapshot[]>((resolve, reject) => {
       const request = store.getAll();
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => resolve((request.result as AuctionSnapshot[]) || []);
       request.onerror = () => reject(request.error);
     });
 
@@ -118,11 +116,16 @@ export async function getCurrentAuctionSnapshot(): Promise<AuctionSnapshot | nul
 
     const transaction = db!.transaction(['auction_snapshots'], 'readonly');
     const store = transaction.objectStore('auction_snapshots');
-    const index = store.index('isCurrent');
 
     return new Promise((resolve, reject) => {
-      const request = index.get(true);
-      request.onsuccess = () => resolve((request.result as AuctionSnapshot) || null);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const snapshots = (request.result as AuctionSnapshot[]) || [];
+        const current = snapshots
+          .filter((s) => s.isCurrent)
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        resolve(current || null);
+      };
       request.onerror = () => reject(request.error);
     });
   } catch (error) {

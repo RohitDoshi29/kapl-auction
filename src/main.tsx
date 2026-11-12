@@ -24,7 +24,7 @@ repairAndSyncLocalPlayerState();
     // Register service worker for caching and offline support
     if ('serviceWorker' in navigator && import.meta.env.PROD) {
       try {
-        const registration = await navigator.serviceWorker.register('/service-worker.ts');
+        const registration = await navigator.serviceWorker.register('/service-worker.js');
         console.log('[SW] Service Worker registered:', registration);
       } catch (error) {
         console.error('[SW] Failed to register Service Worker:', error);

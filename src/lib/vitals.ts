@@ -10,8 +10,8 @@ interface VitalMetrics {
   pageLoadTime?: number;
 }
 
-let metrics: VitalMetrics = {};
-let pageStartTime = performance.now();
+const metrics: VitalMetrics = {};
+const pageStartTime = performance.now();
 
 export function initWebVitals() {
   try {

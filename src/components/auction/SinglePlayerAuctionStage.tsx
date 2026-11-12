@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { PlayerRecord, Team, PlayerRole } from '@/lib/cricketTypes';
+import { formatPlayerRole, formatMoney } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +33,6 @@ import {
   ShieldAlert,
   Trophy,
   UserPlus,
-  RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuctionSaleLog } from '@/hooks/useAuction';
@@ -96,24 +96,26 @@ export function SinglePlayerAuctionStage({
     return userOwnedTeam ? userOwnedTeam.id : teams?.[0]?.id || '';
   });
 
-  // Keep activeOwnerTeamId synced if user owns a team
+  // Keep activeOwnerTeamId synced if user owns a team or division changes
   useEffect(() => {
     if (userOwnedTeam) {
       setActiveOwnerTeamId(userOwnedTeam.id);
-    } else if ((teams || []).length > 0 && !activeOwnerTeamId) {
+    } else if ((teams || []).length > 0 && (!activeOwnerTeamId || !(teams || []).some((t) => t.id === activeOwnerTeamId))) {
       setActiveOwnerTeamId(teams[0].id);
     }
   }, [userOwnedTeam, teams, activeOwnerTeamId]);
 
-  // Sync sold amount when spotlight player changes
+  // Sync sold amount & valid team selection when spotlight player or division changes
   useEffect(() => {
     if (player) {
-      setSoldAmount(player.soldPrice || player.basePrice);
-      if (player.teamId) {
+      setSoldAmount(player.soldPrice || player.basePrice || 100);
+      if (player.teamId && (teams || []).some((t) => t.id === player.teamId)) {
         setSelectedTeamId(player.teamId);
-      } else if ((teams || []).length > 0 && !selectedTeamId) {
+      } else if ((teams || []).length > 0 && (!selectedTeamId || !(teams || []).some((t) => t.id === selectedTeamId))) {
         setSelectedTeamId(teams[0].id);
       }
+    } else if ((teams || []).length > 0 && (!selectedTeamId || !(teams || []).some((t) => t.id === selectedTeamId))) {
+      setSelectedTeamId(teams[0].id);
     }
   }, [player, teams, selectedTeamId]);
 
@@ -135,8 +137,6 @@ export function SinglePlayerAuctionStage({
   const assignedTeam = (teams || []).find((t) => t.id === player?.teamId);
   const isSold = player?.auctionStatus === 'sold';
   const isUnsold = player?.auctionStatus === 'unsold';
-
-  const formatMoney = (val: number) => `₹${val.toLocaleString('en-IN')}`;
 
   const getRoleBadge = (role: PlayerRole) => {
     switch (role) {
@@ -233,10 +233,20 @@ export function SinglePlayerAuctionStage({
     }
   }, [player, playerPool, onSpotlightPlayer]);
 
-  // Check if auction is 100% complete
+  // Check if auction pool has players and all are sold
   const isAllSold = useMemo(() => {
-    return playerPool.length >= 80 && playerPool.every((p) => p.auctionStatus === 'sold');
+    return playerPool.length > 0 && playerPool.every((p) => p.auctionStatus === 'sold');
   }, [playerPool]);
+
+  const auctionTotals = useMemo(() => {
+    const totalInitialPurse = (teams || []).reduce((sum, t) => sum + (t.initialPurse || 10000), 0);
+    const totalSpent = (teams || []).reduce(
+      (sum, t) => sum + (t.players || []).reduce((pSum, p) => pSum + (Number(p.soldPrice) || 0), 0),
+      0
+    );
+    const activeTeamsCount = (teams || []).filter((t) => (t.players || []).length > 0).length;
+    return { totalInitialPurse, totalSpent, activeTeamsCount };
+  }, [teams]);
 
   if (!player) {
     return (
@@ -249,7 +259,7 @@ export function SinglePlayerAuctionStage({
         </h3>
         <p className="text-muted-foreground text-xs mb-5 max-w-md mx-auto">
           {playerPool.length === 0
-            ? 'There are currently no candidates in the live auction queue. Add a player or seed the standard 80 players to begin live bidding.'
+            ? 'There are currently no candidates in the live auction queue. Add players to begin live bidding.'
             : 'Select any candidate from the queue below to start the spotlight auction.'}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2.5">
@@ -270,16 +280,6 @@ export function SinglePlayerAuctionStage({
               }
             />
           </Suspense>
-          {isAdmin && onResetAuction && (
-            <Button
-              variant="outline"
-              onClick={onResetAuction}
-              className="h-9 text-xs border-amber-500/30 text-amber-400 hover:bg-amber-500/10 gap-1.5 font-bold"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Reset & Seed 80 Players
-            </Button>
-          )}
         </div>
       </Card>
     );
@@ -305,7 +305,7 @@ export function SinglePlayerAuctionStage({
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  All 8 franchise squads are 100% full (10/10 players each). Bidding is officially finalized.
+                  All {playerPool.length} players in this division pool have been drafted.
                 </p>
               </div>
             </div>
@@ -313,12 +313,16 @@ export function SinglePlayerAuctionStage({
             <div className="flex items-center gap-4 text-xs font-mono self-end sm:self-auto">
               <div className="text-right">
                 <div className="text-[10px] text-muted-foreground uppercase font-sans">Total Purse Spent</div>
-                <div className="font-bold text-emerald-400 font-mono">₹64,950 / ₹80,000</div>
+                <div className="font-bold text-emerald-400 font-mono">
+                  {formatMoney(auctionTotals.totalSpent)} / {formatMoney(auctionTotals.totalInitialPurse)}
+                </div>
               </div>
               <div className="h-8 w-px bg-white/10" />
               <div className="text-right">
-                <div className="text-[10px] text-muted-foreground uppercase font-sans">Squads Filled</div>
-                <div className="font-bold text-amber-400">8 of 8 (100%)</div>
+                <div className="text-[10px] text-muted-foreground uppercase font-sans">Active Teams</div>
+                <div className="font-bold text-amber-400">
+                  {auctionTotals.activeTeamsCount} of {teams.length}
+                </div>
               </div>
             </div>
           </div>
@@ -385,9 +389,9 @@ export function SinglePlayerAuctionStage({
           <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider shrink-0 flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-amber-400" /> Recent Drafts:
           </span>
-          {salesHistory.slice(0, 6).map((s) => (
+          {salesHistory.slice(0, 6).map((s, idx) => (
             <Badge
-              key={s.id}
+              key={s?.id || `recent-${idx}`}
               variant="outline"
               className="shrink-0 text-[11px] font-medium border-white/10 bg-card/60 gap-1.5 py-1 px-2.5"
             >
@@ -452,7 +456,7 @@ export function SinglePlayerAuctionStage({
                 <Avatar className="w-36 h-36 md:w-44 md:h-44 border-4 border-amber-500/30 shadow-2xl rounded-full">
                   <AvatarImage src={player.photoUrl || undefined} alt={player.name} className="object-cover" />
                   <AvatarFallback className="bg-amber-500/10 text-amber-400 text-4xl md:text-5xl font-black">
-                    {player.name.slice(0, 2).toUpperCase()}
+                    {(player.name || 'P').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 {player.jerseyNumber && (
@@ -514,7 +518,7 @@ export function SinglePlayerAuctionStage({
                 </div>
                 <div className="flex justify-between items-center text-[11px]">
                   <span>Candidate Pool:</span>
-                  <span className="font-semibold text-amber-400 capitalize">{player.role.replace('_', ' ')} (80 Roster)</span>
+                  <span className="font-semibold text-amber-400 capitalize">{formatPlayerRole(player.role)} ({playerPool.length} Pool)</span>
                 </div>
               </div>
             </div>
@@ -917,13 +921,13 @@ export function SinglePlayerAuctionStage({
                   <Avatar className="w-9 h-9 border border-white/10">
                     <AvatarImage src={c.photoUrl || undefined} alt={c.name} />
                     <AvatarFallback className="bg-amber-500/10 text-amber-400 text-xs font-bold">
-                      {c.name.slice(0, 2).toUpperCase()}
+                      {(c.name || 'P').slice(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <span className="font-bold text-xs text-foreground block truncate">{c.name}</span>
                     <span className="text-[10px] text-muted-foreground capitalize block truncate">
-                      {c.role.replace('_', ' ')}
+                      {formatPlayerRole(c.role)}
                     </span>
                   </div>
                 </div>
@@ -1058,15 +1062,15 @@ export function SinglePlayerAuctionStage({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {salesHistory.slice(0, 6).map((log) => (
+            {salesHistory.slice(0, 6).map((log, idx) => (
               <div
-                key={log.id}
+                key={log?.id || `stage-log-${idx}`}
                 className="p-2.5 rounded-xl border border-white/5 bg-background/50 flex items-center justify-between text-xs"
               >
                 <div>
                   <span className="font-bold text-foreground block text-xs">{log.playerName}</span>
                   <span className="text-[10px] text-muted-foreground capitalize">
-                    {log.playerRole.replace('_', ' ')} • {log.status === 'sold' ? <strong className="text-foreground">{log.teamName}</strong> : 'Unsold'}
+                    {formatPlayerRole(log.playerRole)} • {log.status === 'sold' ? <strong className="text-foreground">{log.teamName}</strong> : 'Unsold'}
                   </span>
                 </div>
                 <div className="text-right">
@@ -1134,7 +1138,7 @@ export function SinglePlayerAuctionStage({
               <Avatar className="w-48 h-48 md:w-60 md:h-60 border-4 border-amber-400 shadow-2xl rounded-full">
                 <AvatarImage src={player.photoUrl || undefined} alt={player.name} className="object-cover" />
                 <AvatarFallback className="bg-amber-500/20 text-amber-400 text-6xl font-black">
-                  {player.name.slice(0, 2).toUpperCase()}
+                  {(player.name || 'P').slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               {player.jerseyNumber && (

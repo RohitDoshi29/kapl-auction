@@ -29,7 +29,7 @@ async function checkRealtimeHealth(): Promise<boolean> {
     // Try to subscribe to a test channel
     const channel = supabase.channel('health-check');
 
-    channel.on('status', (status) => {
+    channel.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         realtimeHealthy = true;
         logger.debug('Real-time connection healthy');
@@ -39,8 +39,6 @@ async function checkRealtimeHealth(): Promise<boolean> {
         resumeAllPolling();
       }
     });
-
-    channel.subscribe();
 
     // Clean up after check
     setTimeout(() => {
@@ -75,21 +73,22 @@ export function subscribeWithFallback<T>(
           table: table,
         },
         (payload) => {
-          const record = payload.new || payload.old;
-          if (!filter || filter(record)) {
+          const rawRecord =
+            payload.new && Object.keys(payload.new).length > 0 ? payload.new : payload.old;
+          const record = rawRecord as T | undefined;
+          if (!filter || (record && filter(record))) {
             logger.debug(`Real-time update: ${table}`, { action: payload.eventType });
             fetchAndCallback(table, callback, filter);
           }
         }
       )
-      .on('status', (status) => {
+      .subscribe((status) => {
         if (status === 'CLOSED') {
           logger.warn(`Real-time subscription closed for ${table}, enabling polling fallback`);
           realtimeHealthy = false;
           startPolling(key, table, callback, filter);
         }
-      })
-      .subscribe();
+      });
 
     // Return unsubscribe function
     return () => {
@@ -167,7 +166,16 @@ async function fetchAndCallback<T>(
   filter?: (row: T) => boolean
 ) {
   try {
-    const { data, error } = await supabase.from(table).select('*');
+    const cols =
+      table === 'players'
+        ? 'id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status'
+        : '*';
+    const dynamicClient = supabase as unknown as {
+      from: (tableName: string) => {
+        select: (columns: string) => Promise<{ data: T[] | null; error: { message?: string } | null }>;
+      };
+    };
+    const { data, error } = await dynamicClient.from(table).select(cols);
 
     if (error) {
       logger.error(`Failed to fetch ${table}`, error);

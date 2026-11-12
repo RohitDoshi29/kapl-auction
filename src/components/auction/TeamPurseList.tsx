@@ -1,4 +1,5 @@
 import { Team, PlayerRecord } from '@/lib/cricketTypes';
+import { formatMoney } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -11,8 +12,6 @@ interface TeamPurseListProps {
 }
 
 export function TeamPurseList({ teams, playerPool }: TeamPurseListProps) {
-  const formatMoney = (val: number) => `₹${val.toLocaleString('en-IN')}`;
-
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {teams.map((team) => {

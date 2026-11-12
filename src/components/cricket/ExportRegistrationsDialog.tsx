@@ -58,7 +58,7 @@ export function ExportRegistrationsDialog({
       const text = await exportRegistrationsToText(data);
       setTextContent(text);
     } catch (err: any) {
-      toast.error('Failed to load player registrations: ' + err.message);
+      toast.error('Failed to load auction players: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +73,7 @@ export function ExportRegistrationsDialog({
   const handleDownloadExcel = async () => {
     try {
       const { count, filename } = await exportRegistrationsToExcel(rows);
-      toast.success(`Downloaded ${filename} with ${count} registered player(s)!`);
+      toast.success(`Downloaded ${filename} with ${count} player(s)!`);
     } catch (e: any) {
       toast.error('Excel export failed: ' + e.message);
     }
@@ -83,7 +83,7 @@ export function ExportRegistrationsDialog({
     try {
       await navigator.clipboard.writeText(textContent);
       setCopied(true);
-      toast.success('All player registrations copied to clipboard!');
+      toast.success('All auction player records copied to clipboard!');
       setTimeout(() => setCopied(false), 2500);
     } catch {
       toast.info('Please select all text inside the box and copy manually');
@@ -101,7 +101,7 @@ export function ExportRegistrationsDialog({
               className="bg-amber-500/15 text-amber-400 border-amber-500/30 text-[10px] font-bold px-2 py-0.5"
             >
               <ShieldCheck className="w-3 h-3 mr-1 text-amber-400" />
-              REGISTRATION VAULT & BACKUP
+              AUCTION PLAYER POOL BACKUP
             </Badge>
             <Button
               variant="ghost"
@@ -117,10 +117,10 @@ export function ExportRegistrationsDialog({
 
           <DialogTitle className="text-xl sm:text-2xl font-black font-display text-foreground flex items-center gap-2">
             <FileSpreadsheet className="w-6 h-6 text-emerald-400" />
-            Player Registrations Export
+            Auction Players Export
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            Download an Excel (.xlsx) spreadsheet or view plain-text records. Registrations are permanently stored in the vault and will never be deleted.
+            Download an Excel (.xlsx) spreadsheet or view plain-text records for all auction players and sale results.
           </DialogDescription>
         </DialogHeader>
 
@@ -130,7 +130,7 @@ export function ExportRegistrationsDialog({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
             <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.08] text-center">
               <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
-                Total Registrations
+                Total Players
               </span>
               <span className="text-2xl font-black text-amber-400 mt-0.5 block">
                 {rows.length}
@@ -187,7 +187,7 @@ export function ExportRegistrationsDialog({
           <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
             <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-amber-400" />
-              Registration Text Viewer
+              Player Pool Text Viewer
             </span>
             <div className="flex items-center gap-1 text-[11px]">
               <button
@@ -231,7 +231,7 @@ export function ExportRegistrationsDialog({
             <div className="border border-white/10 rounded-2xl overflow-hidden bg-black/20 max-h-56 overflow-y-auto">
               {rows.length === 0 ? (
                 <div className="p-8 text-center text-xs text-muted-foreground">
-                  No player registrations found in database or local storage yet.
+                  No auction players found in database or local storage yet.
                 </div>
               ) : (
                 <div className="divide-y divide-white/[0.06] text-xs">

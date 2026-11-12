@@ -1,6 +1,3 @@
-/// <reference lib="webworker" />
-declare const self: ServiceWorkerGlobalScope;
-
 const CACHE_NAME = 'kapl-v1';
 const RUNTIME_CACHE = 'kapl-runtime-v1';
 const API_CACHE = 'kapl-api-v1';
@@ -39,24 +36,20 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET requests
   if (request.method !== 'GET') {
     return;
   }
 
-  // Handle API requests
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirstStrategy(request));
     return;
   }
 
-  // Handle health check - always network
   if (url.pathname === '/health') {
     event.respondWith(fetch(request));
     return;
   }
 
-  // Handle assets (JS, CSS, images)
   if (
     url.pathname.endsWith('.js') ||
     url.pathname.endsWith('.css') ||
@@ -70,11 +63,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Handle HTML and other requests
   event.respondWith(networkFirstStrategy(request));
 });
 
-async function cacheFirstStrategy(request: Request): Promise<Response> {
+async function cacheFirstStrategy(request) {
   const cache = await caches.open(RUNTIME_CACHE);
   const cached = await cache.match(request);
 
@@ -88,12 +80,12 @@ async function cacheFirstStrategy(request: Request): Promise<Response> {
       cache.put(request, response.clone());
     }
     return response;
-  } catch (error) {
+  } catch {
     return new Response('Offline', { status: 503 });
   }
 }
 
-async function networkFirstStrategy(request: Request): Promise<Response> {
+async function networkFirstStrategy(request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
@@ -101,7 +93,7 @@ async function networkFirstStrategy(request: Request): Promise<Response> {
       cache.put(request, response.clone());
     }
     return response;
-  } catch (error) {
+  } catch {
     const cache = await caches.open(API_CACHE);
     const cached = await cache.match(request);
     if (cached) {
@@ -111,7 +103,6 @@ async function networkFirstStrategy(request: Request): Promise<Response> {
   }
 }
 
-// Handle messages from clients
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();

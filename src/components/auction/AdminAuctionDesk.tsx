@@ -1,5 +1,6 @@
-import { useState, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { PlayerRecord, Team, PlayerRole } from '@/lib/cricketTypes';
+import { formatPlayerRole, formatMoney } from '@/lib/utils';
 import { AUCTION_CATEGORIES, AuctionSaleLog } from '@/hooks/useAuction';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +66,7 @@ interface AdminAuctionDeskProps {
   onDecideUnsold: (playerId: string) => Promise<void> | void;
   onRevertStatus: (playerId: string) => Promise<void> | void;
   onResetAuction: () => Promise<any> | void;
-  onAutoCompleteAuction?: () => Promise<any> | void;
+  onClearAllPlayers?: () => Promise<any> | void;
   onStartAcceleratedRound?: () => Promise<void> | void;
   onRemovePlayer?: (playerId: string) => Promise<void> | void;
   autoAdvanceCountdown?: number | null;
@@ -86,7 +87,7 @@ export function AdminAuctionDesk({
   onDecideUnsold,
   onRevertStatus,
   onResetAuction,
-  onAutoCompleteAuction,
+  onClearAllPlayers,
   onStartAcceleratedRound,
   onRemovePlayer,
   autoAdvanceCountdown,
@@ -105,21 +106,26 @@ export function AdminAuctionDesk({
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Keep price synced with active spotlight player
-  useMemo(() => {
+  // Keep price & team selection synced with active player and current tournament division
+  useEffect(() => {
     if (currentPlayer) {
-      setSoldPrice(currentPlayer.soldPrice || currentPlayer.basePrice);
-      if (currentPlayer.teamId) {
+      setSoldPrice(currentPlayer.soldPrice || currentPlayer.basePrice || 100);
+      if (currentPlayer.teamId && teams.some((t) => t.id === currentPlayer.teamId)) {
         setSelectedTeamId(currentPlayer.teamId);
-      } else if (teams.length > 0 && !selectedTeamId) {
+      } else if (teams.length > 0 && (!selectedTeamId || !teams.some((t) => t.id === selectedTeamId))) {
         setSelectedTeamId(teams[0].id);
       }
+    } else if (teams.length > 0 && (!selectedTeamId || !teams.some((t) => t.id === selectedTeamId))) {
+      setSelectedTeamId(teams[0].id);
     }
   }, [currentPlayer, teams, selectedTeamId]);
 
-  const formatMoney = (val: number) => `₹${val.toLocaleString('en-IN')}`;
-
   const selectedTeam = (teams || []).find((t) => t.id === selectedTeamId) || teams?.[0];
+  const selectedTeamPurse = selectedTeam
+    ? (selectedTeam.players?.length || 0) === 0
+      ? (selectedTeam.initialPurse || 10000)
+      : (selectedTeam.remainingPurse ?? 10000)
+    : 10000;
   const isCurrentSold = currentPlayer?.auctionStatus === 'sold';
   const isCurrentUnsold = currentPlayer?.auctionStatus === 'unsold';
 
@@ -145,8 +151,8 @@ export function AdminAuctionDesk({
 
       // Search query
       if (q) {
-        const matchesName = p.name.toLowerCase().includes(q);
-        const matchesRole = p.role.toLowerCase().includes(q);
+        const matchesName = (p.name || '').toLowerCase().includes(q);
+        const matchesRole = (p.role || '').toLowerCase().includes(q);
         const matchesStyle = (p.battingStyle || '').toLowerCase().includes(q) || (p.bowlingStyle || '').toLowerCase().includes(q);
         if (!matchesName && !matchesRole && !matchesStyle) return false;
       }
@@ -263,9 +269,9 @@ export function AdminAuctionDesk({
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Reset Auction & Squads?</AlertDialogTitle>
+                  <AlertDialogTitle>Reset Bids &amp; Franchise Purses?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This will empty all team rosters to ₹10,000 purse, clear all bids, and reset all 80 players back to pending status.
+                    This will empty all team rosters, restore every purse to ₹10,000, clear recent bids, and reset all {playerPool.length} current auction players back to pending status.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -277,24 +283,29 @@ export function AdminAuctionDesk({
               </AlertDialogContent>
             </AlertDialog>
 
-            {onAutoCompleteAuction && (
+            {onClearAllPlayers && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button size="sm" className="h-7 text-[10px] font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-slate-950 gap-1 flex-1 shadow-sm">
-                    <Sparkles className="w-3 h-3" /> Auto-Fill (Test)
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={playerPool.length === 0}
+                    className="h-7 text-[10px] font-bold border-rose-500/30 text-rose-400 hover:bg-rose-500/10 gap-1 flex-1"
+                  >
+                    <Trash2 className="w-3 h-3" /> Clear All
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Auto-Complete Auction for 80 Players?</AlertDialogTitle>
+                    <AlertDialogTitle>Remove All {playerPool.length} Players?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This is a testing shortcut that immediately allocates all 80 auction players into 10-player franchise squads across all 8 teams with realistic bid amounts within their ₹10,000 purse limit.
+                      This permanently removes all players from this division&apos;s auction queue, clears all team squads, and restores every franchise purse to ₹10,000.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={onAutoCompleteAuction} className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold">
-                      Confirm & Complete Auction
+                    <AlertDialogAction onClick={onClearAllPlayers} className="bg-rose-600 hover:bg-rose-700 text-white font-bold">
+                      Remove All Players
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -342,7 +353,7 @@ export function AdminAuctionDesk({
                 <Avatar className="w-24 h-24 mx-auto border-2 border-amber-400/50 shadow-md">
                   <AvatarImage src={currentPlayer.photoUrl || undefined} alt={currentPlayer.name} />
                   <AvatarFallback className="bg-amber-500/20 text-amber-400 text-2xl font-black">
-                    {currentPlayer.name.slice(0, 2).toUpperCase()}
+                    {(currentPlayer.name || 'P').slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
 
@@ -350,7 +361,7 @@ export function AdminAuctionDesk({
                   <h4 className="text-xl font-black text-foreground">{currentPlayer.name}</h4>
                   <div className="flex items-center justify-center gap-1.5 mt-1">
                     <Badge variant="outline" className="text-xs font-bold uppercase">
-                      {currentPlayer.role.replace('_', ' ')}
+                      {formatPlayerRole(currentPlayer.role)}
                     </Badge>
                     <Badge
                       className={`text-[10px] font-bold uppercase ${
@@ -494,11 +505,11 @@ export function AdminAuctionDesk({
                   )}
 
                   {/* Warning if team can't afford */}
-                  {selectedTeam && (selectedTeam.remainingPurse !== undefined && (selectedTeam.players?.length || 0) === 0 ? (selectedTeam.initialPurse || 10000) : (selectedTeam.remainingPurse ?? 10000)) < soldPrice && (
+                  {selectedTeam && selectedTeamPurse < soldPrice && (
                     <div className="flex items-center gap-1.5 text-xs text-amber-400 mt-2 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl font-bold">
                       <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
                       <span>
-                        Notice: {selectedTeam.name} has only {formatMoney((selectedTeam.players?.length || 0) === 0 ? (selectedTeam.initialPurse || 10000) : (selectedTeam.remainingPurse ?? 10000))} remaining in purse.
+                        Notice: {selectedTeam.name} has only {formatMoney(selectedTeamPurse)} remaining in purse.
                       </span>
                     </div>
                   )}
@@ -542,7 +553,7 @@ export function AdminAuctionDesk({
                       isSubmitting ||
                       isCurrentSold ||
                       (selectedTeam?.players?.length || 0) >= (selectedTeam?.maxSquadSize || 10) ||
-                      (selectedTeam?.remainingPurse ?? 10000) < soldPrice
+                      selectedTeamPurse < soldPrice
                     }
                     className="flex-1 min-w-[200px] h-11 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm gap-2 shadow-lg shadow-emerald-950/20"
                   >
@@ -734,7 +745,7 @@ export function AdminAuctionDesk({
                             <Avatar className="w-8 h-8 rounded-lg border border-white/10">
                               <AvatarImage src={p.photoUrl || undefined} alt={p.name} />
                               <AvatarFallback className="text-[10px] font-black bg-muted">
-                                {p.name.slice(0, 2).toUpperCase()}
+                                {(p.name || 'P').slice(0, 2).toUpperCase()}
                               </AvatarFallback>
                             </Avatar>
                             <div>
@@ -748,7 +759,7 @@ export function AdminAuctionDesk({
                         <td className="py-3 px-3">
                           <div>
                             <span className="font-semibold text-primary capitalize block">
-                              {p.role.replace('_', ' ')}
+                              {formatPlayerRole(p.role)}
                             </span>
                             <span className="text-[10px] text-muted-foreground truncate block">
                               {p.battingStyle || 'Right-hand bat'} • {p.bowlingStyle || 'None'}
@@ -870,15 +881,15 @@ export function AdminAuctionDesk({
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-            {salesHistory.slice(0, 9).map((log) => (
+            {salesHistory.slice(0, 9).map((log, idx) => (
               <div
-                key={log.id}
+                key={log?.id || `desk-log-${idx}`}
                 className="p-2.5 rounded-xl border border-white/5 bg-background/60 flex items-center justify-between text-xs"
               >
                 <div>
                   <span className="font-bold text-foreground block">{log.playerName}</span>
                   <span className="text-[10px] text-muted-foreground capitalize">
-                    {log.playerRole.replace('_', ' ')} • {log.status === 'sold' ? log.teamName : 'Unsold'}
+                    {formatPlayerRole(log.playerRole)} • {log.status === 'sold' ? log.teamName : 'Unsold'}
                   </span>
                 </div>
                 <div className="text-right">
