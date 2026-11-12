@@ -111,7 +111,8 @@ export async function syncPlayerToAuctionAndTournament(playerRecord: PlayerRecor
         : [playerRecord.tournamentId || 'kapl-3-mens'];
 
       for (const tId of tournamentsToDispatch) {
-        const dispatchRecord = { ...playerRecord, tournamentId: tId };
+        const tournRecordId = getTournamentPlayerId(playerRecord.id, tId, playerRecord.name);
+        const dispatchRecord = { ...playerRecord, id: tournRecordId || playerRecord.id, tournamentId: tId };
         window.dispatchEvent(
           new CustomEvent('kapl_player_added', {
             detail: { player: dispatchRecord, tournamentId: tId },
@@ -639,17 +640,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const checkSession = async () => {
       try {
         const { data: { session: supaSession } } = await supabase.auth.getSession();
-        let localSession: Session | null = null;
-        try {
-          const stored = localStorage.getItem('kapl_active_session');
-          if (stored) {
-            localSession = JSON.parse(stored);
-          }
-        } catch {}
-
-        const effectiveSession = supaSession || localSession;
         if (!isMounted) return;
 
+        if (!supaSession?.user) {
+          try {
+            localStorage.removeItem('kapl_active_session');
+            localStorage.removeItem('kapl_active_user');
+          } catch {}
+        }
+
+        const effectiveSession = supaSession ?? null;
         setSession(effectiveSession);
         setUser(effectiveSession?.user ?? null);
 
@@ -711,24 +711,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isMounted) setIsLoading(false);
         }
       } else {
-        let localSession: Session | null = null;
         try {
-          const stored = localStorage.getItem('kapl_active_session');
-          if (stored) localSession = JSON.parse(stored);
+          localStorage.removeItem('kapl_active_session');
+          localStorage.removeItem('kapl_active_user');
         } catch {}
-        if (localSession?.user) {
-          setSession(localSession);
-          setUser(localSession.user);
-          const [role, prof] = await Promise.all([
-            fetchUserRole(localSession.user.id, localSession.user.email),
-            fetchUserProfile(localSession.user),
-          ]);
-          if (isMounted) {
-            setUserRole(role);
-            setProfile(prof);
-            setIsLoading(false);
-          }
-        } else if (isMounted) {
+        if (isMounted) {
           setUserRole(null);
           setProfile(null);
           setIsLoading(false);
@@ -770,94 +757,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: null };
       }
 
-      supaError = error ? new Error(error.message) : null;
+      supaError = error ? new Error(error.message) : new Error('No active Supabase session returned. Check Email confirmation or credentials.');
     } catch (e: any) {
-      supaError = e;
+      supaError = e instanceof Error ? e : new Error(String(e?.message || 'Sign in failed'));
     }
 
-    // 2. Check local accounts registry (bypasses any Supabase email confirmation restriction)
-    try {
-      const registeredAccounts = JSON.parse(localStorage.getItem('kapl_registered_accounts') || '{}');
-      const localAcc = registeredAccounts[cleanEmail];
-      if (localAcc) {
-        if (localAcc.password === password) {
-          const restoredUser: User = localAcc.user || ({
-            id: localAcc.id || `u_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-            email: cleanEmail,
-            email_confirmed_at: new Date().toISOString(),
-            user_metadata: { name: localAcc.name },
-            aud: 'authenticated',
-            created_at: new Date().toISOString(),
-            role: 'authenticated',
-            app_metadata: { provider: 'email' },
-          } as User);
-
-          const restoredSession: Session = {
-            access_token: `kapl_sess_${Date.now()}`,
-            refresh_token: `kapl_ref_${Date.now()}`,
-            expires_in: 3600 * 24 * 365,
-            expires_at: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
-            token_type: 'bearer',
-            user: restoredUser,
-          } as Session;
-
-          localStorage.setItem('kapl_active_session', JSON.stringify(restoredSession));
-          localStorage.setItem('kapl_active_user', JSON.stringify(restoredUser));
-
-          setSession(restoredSession);
-          setUser(restoredUser);
-          const [role, prof] = await Promise.all([
-            fetchUserRole(restoredUser.id, cleanEmail),
-            fetchUserProfile(restoredUser),
-          ]);
-          setUserRole(role);
-          setProfile(prof);
-          return { error: null };
-        } else {
-          return { error: new Error('Invalid email or password. Please try again.') };
-        }
-      }
-    } catch (e) {
-      console.warn('Error checking local registered accounts:', e);
-    }
-
-    // 3. If Supabase returned "Email not confirmed", auto-confirm without blocking user!
-    if (supaError && supaError.message.toLowerCase().includes('email not confirmed')) {
-      const restoredUser: User = {
-        id: `u_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        email: cleanEmail,
-        email_confirmed_at: new Date().toISOString(),
-        user_metadata: { name: cleanEmail.split('@')[0] },
-        aud: 'authenticated',
-        created_at: new Date().toISOString(),
-        role: 'authenticated',
-        app_metadata: { provider: 'email' },
-      } as User;
-
-      const restoredSession: Session = {
-        access_token: `kapl_sess_${Date.now()}`,
-        refresh_token: `kapl_ref_${Date.now()}`,
-        expires_in: 3600 * 24 * 365,
-        expires_at: Math.floor(Date.now() / 1000) + 3600 * 24 * 365,
-        token_type: 'bearer',
-        user: restoredUser,
-      } as Session;
-
-      localStorage.setItem('kapl_active_session', JSON.stringify(restoredSession));
-      localStorage.setItem('kapl_active_user', JSON.stringify(restoredUser));
-
-      setSession(restoredSession);
-      setUser(restoredUser);
-      const [role, prof] = await Promise.all([
-        fetchUserRole(restoredUser.id, cleanEmail),
-        fetchUserProfile(restoredUser),
-      ]);
-      setUserRole(role);
-      setProfile(prof);
-      return { error: null };
-    }
-
-    return { error: supaError || new Error('Invalid email or password. Please try again.') };
+    return { error: supaError };
   }, [fetchUserRole, fetchUserProfile]);
 
   const signUp = useCallback(async (

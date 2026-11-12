@@ -131,6 +131,7 @@ export function AddPlayerModal({
     }
 
     setIsSubmitting(true);
+    let createdPlayer: PlayerRecord | undefined;
     try {
       await executeRequest('add-player', async () => {
         if (onAddPlayer) {
@@ -138,7 +139,13 @@ export function AddPlayerModal({
           if (res && res.success === false) {
             throw new Error(res.error || 'Failed to add player');
           }
+          createdPlayer = res?.player;
         } else {
+          const { data: { session: liveSession } } = await supabase.auth.getSession();
+          if (!liveSession?.access_token) {
+            throw new Error('Supabase session not active. Please Sign Out and Sign In again.');
+          }
+
           const generatedId = `p_c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           const dualTournaments = targetTourn === 'all'
             ? ['kapl-3-mens', 'kapl-3-womens']
@@ -146,35 +153,36 @@ export function AddPlayerModal({
 
           for (const tId of dualTournaments) {
             const idForTourn = tId === 'kapl-3-womens' ? `${generatedId}_w` : generatedId;
-            try {
-              const { error: insErr } = await supabase.from('players').insert({
-                id: idForTourn,
-                name: cleanName,
-                photo_url: photoUrl.trim() || null,
-                role: role,
-                batting_style: battingStyle || null,
-                bowling_style: bowlingStyle || null,
-                jersey_number: jerseyNum,
-                mobile_number: mobileNumber.trim() || null,
-                tournament_id: tId,
-                base_price: Number(basePrice) || 100,
-                auction_status: 'pending',
-              });
-              if (insErr && insErr.code === '23505') {
-                await supabase.from('players').update({
+            const { error: insErr } = await supabase.from('players').insert({
+              id: idForTourn,
+              name: cleanName,
+              photo_url: validation.data.photoUrl || null,
+              role: role,
+              batting_style: battingStyle || null,
+              bowling_style: bowlingStyle || null,
+              jersey_number: jerseyNum,
+              mobile_number: validation.data.mobileNumber || null,
+              tournament_id: tId,
+              base_price: Number(basePrice) || 100,
+              auction_status: 'pending',
+            });
+            if (insErr) {
+              if (insErr.code === '23505') {
+                const { error: updErr } = await supabase.from('players').update({
                   name: cleanName,
-                  photo_url: photoUrl.trim() || null,
+                  photo_url: validation.data.photoUrl || null,
                   role: role,
                   batting_style: battingStyle || null,
                   bowling_style: bowlingStyle || null,
                   jersey_number: jerseyNum,
-                  mobile_number: mobileNumber.trim() || null,
+                  mobile_number: validation.data.mobileNumber || null,
                   tournament_id: tId,
                   base_price: Number(basePrice) || 100,
                 }).eq('id', idForTourn);
+                if (updErr) throw new Error(updErr.message);
+              } else {
+                throw new Error(insErr.message);
               }
-            } catch (e) {
-              logger.warn('Direct player insert failed', { error: e, tournament: tId });
             }
           }
 
@@ -189,12 +197,13 @@ export function AddPlayerModal({
             auctionStatus: 'pending',
             tournamentId: targetTourn,
             jerseyNumber: jerseyNum,
-            mobileNumber: mobileNumber.trim() || null,
-            photoUrl: photoUrl.trim() || null,
+            mobileNumber: validation.data.mobileNumber || null,
+            photoUrl: validation.data.photoUrl || null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
 
+          createdPlayer = masterRecord;
           saveToPlayerVault({
             ...masterRecord,
             gender,
@@ -204,8 +213,8 @@ export function AddPlayerModal({
         }
       });
 
-      onPlayerAdded?.(validation.data as any);
-      toast.success(`🎉 ${cleanName} added to the Live Auction pool!`);
+      onPlayerAdded?.(createdPlayer || (validation.data as any));
+      toast.success(`🏏 ${cleanName} added to the Live Auction pool!`);
       logger.info('Player added successfully', { playerName: cleanName, tournamentId: targetTourn });
       resetForm();
       setIsOpen(false);

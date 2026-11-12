@@ -1873,6 +1873,11 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         return { success: false, error: 'Player name is required' };
       }
 
+      const { data: { session: liveSession } } = await supabase.auth.getSession();
+      if (!liveSession?.access_token) {
+        throw new Error('Supabase session not active. Please Sign Out and Sign In again to save players to the database.');
+      }
+
       const targetTourn = playerInput.tournamentId || 'all';
       const generatedId = `p_c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const basePrice = Number(playerInput.basePrice || 100);
@@ -1903,14 +1908,15 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           updatedAt: new Date().toISOString(),
         };
 
-        if (tId === tournamentId || !createdForCurrent) {
+        if (tId === tournamentId) {
           createdForCurrent = playerRecord;
         }
 
         let dbSuccess = false;
+        let lastDbError: string | null = null;
 
         // 1. Primary: RPC for atomic insertion with validation when signed in with Supabase auth
-        if (isValidUuid(user?.id)) {
+        if (isValidUuid(liveSession.user?.id || user?.id)) {
           try {
             const { error: rpcError } = await supabase.rpc('register_new_player', {
               p_id: idForTourn,
@@ -1928,9 +1934,11 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
             if (!rpcError) {
               dbSuccess = true;
             } else {
+              lastDbError = rpcError.message;
               console.warn(`RPC register_new_player failed for ${idForTourn}:`, rpcError);
             }
-          } catch (rpcErr) {
+          } catch (rpcErr: any) {
+            lastDbError = rpcErr?.message || String(rpcErr);
             console.warn(`RPC register_new_player exception for ${idForTourn}:`, rpcErr);
           }
         }
@@ -1968,17 +1976,21 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
               }).eq('id', idForTourn);
               if (!updateErr) {
                 dbSuccess = true;
+              } else {
+                lastDbError = updateErr.message;
               }
             } else {
+              lastDbError = insError.message;
               console.warn(`Could not insert player via direct insert (${tId}):`, insError);
             }
-          } catch (dbErr) {
+          } catch (dbErr: any) {
+            lastDbError = dbErr?.message || String(dbErr);
             console.warn(`Insert exception for ${idForTourn}:`, dbErr);
           }
         }
 
-        if (!dbSuccess && tId === tournamentId) {
-          throw new Error(`Failed to persist player ${idForTourn} to database after retries`);
+        if (!dbSuccess) {
+          throw new Error(lastDbError || `Failed to save player ${idForTourn} to Supabase`);
         }
       }
 
@@ -2005,32 +2017,34 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         gender: playerInput.gender || (targetTourn === 'kapl-3-womens' ? 'female' : 'male'),
       });
 
-      // 4. Update in-memory state & localStorage for current tournament immediately
+      // 4. Update in-memory state & localStorage only when the active tournament was included
       const activeCandidate = createdForCurrent || masterRecord;
-      lastAddedPlayerIdRef.current = activeCandidate.id;
+      if (dualTournaments.includes(tournamentId)) {
+        lastAddedPlayerIdRef.current = activeCandidate.id;
 
-      setPlayerPool((prev) => {
-        const exists = prev.some((p) => p.id === activeCandidate.id);
-        const updated = exists
-          ? prev.map((p) => p.id === activeCandidate.id ? { ...p, ...activeCandidate } : p)
-          : [...prev, activeCandidate];
-        try {
-          localStorage.setItem(`kapl_auction_players_${tournamentId}`, JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
-
-      setCurrentPlayer((current) => {
-        if (!current || current.auctionStatus === 'sold' || current.auctionStatus === 'unsold') {
+        setPlayerPool((prev) => {
+          const exists = prev.some((p) => p.id === activeCandidate.id);
+          const updated = exists
+            ? prev.map((p) => p.id === activeCandidate.id ? { ...p, ...activeCandidate } : p)
+            : [...prev, activeCandidate];
           try {
-            localStorage.setItem(`kapl_auction_active_player_${tournamentId}`, activeCandidate.id);
+            localStorage.setItem(`kapl_auction_players_${tournamentId}`, JSON.stringify(updated));
           } catch {}
-          return activeCandidate;
-        }
-        return current;
-      });
+          return updated;
+        });
 
-      setSelectedCategory('all');
+        setCurrentPlayer((current) => {
+          if (!current || current.auctionStatus === 'sold' || current.auctionStatus === 'unsold') {
+            try {
+              localStorage.setItem(`kapl_auction_active_player_${tournamentId}`, activeCandidate.id);
+            } catch {}
+            return activeCandidate;
+          }
+          return current;
+        });
+
+        setSelectedCategory('all');
+      }
 
       // 5. Sync to registered players list and auction across all tabs
       await syncPlayerToAuctionAndTournament(masterRecord);
@@ -2041,12 +2055,10 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         tournamentId: targetTourn,
       });
 
-      toast.success(`🏏 ${cleanName} added to the Live Auction pool!`);
       return { success: true, player: activeCandidate };
     } catch (err: any) {
       console.error('Error adding player to auction:', err);
-      toast.error('Failed to add player: ' + err.message);
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Unknown error adding player' };
     }
   }, [tournamentId, broadcastAuctionEvent, user?.id, isAdmin]);
 

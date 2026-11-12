@@ -8,8 +8,21 @@ export const PlayerInputSchema = z.object({
   bowlingStyle: z.string().optional(),
   basePrice: z.number().int().min(100, 'Base price minimum ₹100').max(10000, 'Base price maximum ₹10,000'),
   jerseyNumber: z.number().int().min(0).max(99).nullable().optional(),
-  mobileNumber: z.string().regex(/^\d{10}$/, 'Invalid mobile number').nullable().optional().or(z.literal('')),
-  photoUrl: z.string().url('Invalid photo URL').nullable().optional().or(z.literal('')),
+  mobileNumber: z.preprocess(
+    (val) => {
+      if (val === null || val === undefined) return null;
+      const cleaned = String(val).replace(/[\s\-()]/g, '');
+      if (!cleaned) return '';
+      if (cleaned.startsWith('+91') && cleaned.length === 13) return cleaned.slice(3);
+      if (cleaned.startsWith('0') && cleaned.length === 11) return cleaned.slice(1);
+      return cleaned;
+    },
+    z.string().regex(/^\d{10}$/, 'Invalid mobile number (enter 10 digits)').nullable().optional().or(z.literal(''))
+  ),
+  photoUrl: z.preprocess(
+    (val) => (typeof val === 'string' ? val.trim() : val),
+    z.string().url('Invalid photo URL').nullable().optional().or(z.literal(''))
+  ),
   gender: z.enum(['male', 'female']),
   tournamentId: z.string().min(1, 'Tournament is required'),
 });
