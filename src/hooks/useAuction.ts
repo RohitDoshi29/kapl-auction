@@ -1863,6 +1863,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     tournamentId?: string;
   }): Promise<{ success: boolean; player?: PlayerRecord; error?: string }> => {
     try {
+      console.log('🟢 addPlayerToAuction called', { playerName: playerInput.name });
       if (!isAdmin) {
         const msg = 'Only administrators can add players to the auction.';
         toast.error(msg);
@@ -1873,10 +1874,12 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         return { success: false, error: 'Player name is required' };
       }
 
+      console.log('🔍 Getting Supabase session...', { playerName: cleanName });
       const { data: { session: liveSession } } = await supabase.auth.getSession();
       if (!liveSession?.access_token) {
         throw new Error('Supabase session not active. Please Sign Out and Sign In again to save players to the database.');
       }
+      console.log('✅ Session valid', { playerName: cleanName });
 
       const targetTourn = playerInput.tournamentId || 'all';
       const generatedId = `p_c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -2048,17 +2051,21 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       }
 
       // 5. Sync to registered players list and auction across all tabs
+      console.log('🔄 Syncing player to auction and tournament...', { playerId: activeCandidate.id });
       await syncPlayerToAuctionAndTournament(masterRecord);
+      console.log('✅ Player sync complete', { playerId: activeCandidate.id });
 
       // 6. Broadcast across tabs and Supabase channels
+      console.log('📢 Broadcasting player added event...', { playerId: activeCandidate.id });
       broadcastAuctionEvent('auction_player_added', {
         player: activeCandidate,
         tournamentId: targetTourn,
       });
+      console.log('✅ Broadcast complete', { playerId: activeCandidate.id });
 
       return { success: true, player: activeCandidate };
     } catch (err: any) {
-      console.error('Error adding player to auction:', err);
+      console.error('❌ Error adding player to auction:', err);
       return { success: false, error: err?.message || 'Unknown error adding player' };
     }
   }, [tournamentId, broadcastAuctionEvent, user?.id, isAdmin]);

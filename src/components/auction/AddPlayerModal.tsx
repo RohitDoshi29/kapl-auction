@@ -135,12 +135,15 @@ export function AddPlayerModal({
     try {
       await executeRequest('add-player', async () => {
         if (onAddPlayer) {
+          logger.info('Adding player via onAddPlayer hook', { playerName: cleanName });
           const res = await onAddPlayer(validation.data as any);
           if (res && res.success === false) {
             throw new Error(res.error || 'Failed to add player');
           }
           createdPlayer = res?.player;
+          logger.info('Player added via hook successfully', { playerId: createdPlayer?.id });
         } else {
+          logger.info('Adding player via direct Supabase insert', { playerName: cleanName });
           const { data: { session: liveSession } } = await supabase.auth.getSession();
           if (!liveSession?.access_token) {
             throw new Error('Supabase session not active. Please Sign Out and Sign In again.');
@@ -153,6 +156,7 @@ export function AddPlayerModal({
 
           for (const tId of dualTournaments) {
             const idForTourn = tId === 'kapl-3-womens' ? `${generatedId}_w` : generatedId;
+            logger.info('Inserting player into tournament', { playerName: cleanName, tournamentId: tId });
             const { error: insErr } = await supabase.from('players').insert({
               id: idForTourn,
               name: cleanName,
@@ -168,6 +172,7 @@ export function AddPlayerModal({
             });
             if (insErr) {
               if (insErr.code === '23505') {
+                logger.info('Player exists, updating instead', { playerId: idForTourn });
                 const { error: updErr } = await supabase.from('players').update({
                   name: cleanName,
                   photo_url: validation.data.photoUrl || null,
@@ -205,12 +210,15 @@ export function AddPlayerModal({
           };
 
           createdPlayer = masterRecord;
+          logger.info('Saving player to vault', { playerId: generatedId });
           saveToPlayerVault({
             ...masterRecord,
             gender,
           });
 
+          logger.info('Syncing player to auction and tournament', { playerId: generatedId });
           await syncPlayerToAuctionAndTournament(masterRecord);
+          logger.info('Player sync complete', { playerId: generatedId });
         }
       });
 
@@ -221,6 +229,7 @@ export function AddPlayerModal({
       setIsOpen(false);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      console.error('🔴 AddPlayerModal Error:', { errorMessage, playerName: cleanName, stack: err instanceof Error ? err.stack : undefined });
       toast.error('Failed to create player: ' + errorMessage);
       logger.error('Failed to add player', err, { playerName: cleanName });
     } finally {
@@ -230,6 +239,15 @@ export function AddPlayerModal({
 
   if (!isAdmin) {
     return null;
+  }
+
+  // Debug helper: Check if stuck in loading state
+  if (isSubmitting && typeof window !== 'undefined') {
+    console.debug('🟡 AddPlayerModal: Form is in submitting state', {
+      isSubmitting,
+      isPendingAddPlayer: isPending('add-player'),
+      dialogOpen: isOpen,
+    });
   }
 
   return (
