@@ -111,9 +111,6 @@ export function CategoryPlayerGrid({
                 {filteredPlayers.length} / {players.length} Players
               </Badge>
             </CardTitle>
-            <span className="text-xs text-muted-foreground">
-              Click any candidate to put them under the live hammer spotlight
-            </span>
           </div>
 
           {/* Search Bar & Status Chips */}

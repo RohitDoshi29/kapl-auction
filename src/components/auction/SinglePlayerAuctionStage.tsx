@@ -964,9 +964,6 @@ export function SinglePlayerAuctionStage({
             <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
             <span>All Franchise Purses, Quotas & Acquired Rosters</span>
           </h3>
-          <span className="text-xs text-muted-foreground">
-            Click any team to inspect their wallet & squad breakdown
-          </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">

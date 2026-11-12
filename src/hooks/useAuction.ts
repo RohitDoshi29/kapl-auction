@@ -1111,6 +1111,18 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     };
     window.addEventListener('kapl_player_removed', handlePlayerRemoved);
 
+    // Sync latest DB edits (e.g. manual Supabase Table Editor updates) when returning to this tab
+    let lastFocusSyncAt = Date.now();
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'hidden') return;
+      const now = Date.now();
+      if (now - lastFocusSyncAt < 2000) return;
+      lastFocusSyncAt = now;
+      debouncedFetchData();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
     return () => {
       supabase.removeChannel(channel);
       sharedAuctionBroadcastChannel = null;
@@ -1126,6 +1138,8 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       window.removeEventListener('kapl-auction-local-update', handleLocalEvent);
       window.removeEventListener('kapl_player_added', handlePlayerAdded);
       window.removeEventListener('kapl_player_removed', handlePlayerRemoved);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, [tournamentId, fetchData]);
