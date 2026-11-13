@@ -307,6 +307,14 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
       // 2. Fetch non-legacy players from Supabase (public safe columns)
       console.log('👥 Fetching players for tournament:', tournamentId);
+
+      // Clear any "cleared" flags that might be hiding players
+      try {
+        localStorage.removeItem('kapl_all_players_cleared');
+        localStorage.removeItem(`kapl_everything_reset_${tournamentId}`);
+        localStorage.removeItem('kapl_auction_manually_reset_' + tournamentId);
+      } catch {}
+
       const { data: allPlayers, error: playersError } = await supabase
         .from('players')
         .select('id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status, mobile_number')
