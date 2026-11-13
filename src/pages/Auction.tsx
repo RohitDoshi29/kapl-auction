@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAuction } from '@/hooks/useAuction';
 import { useTournament } from '@/contexts/TournamentContext';
 import { Header } from '@/components/cricket/Header';
@@ -25,9 +27,18 @@ import { toast } from 'sonner';
 import { Gavel, Wallet, Users, Radio, Sparkles, RotateCcw, Trash2, Zap, FileSpreadsheet } from 'lucide-react';
 
 export default function Auction() {
+  const navigate = useNavigate();
+  const { isOwner } = useAuth();
   const { activeTournamentId, setActiveTournamentId } = useTournament();
   const [activeTab, setActiveTab] = useState<'spotlight' | 'categories' | 'teams' | 'admin'>('spotlight');
   const [isResetting, setIsResetting] = useState(false);
+
+  // Redirect owners to dashboard
+  useEffect(() => {
+    if (isOwner) {
+      navigate('/owner/dashboard', { replace: true });
+    }
+  }, [isOwner, navigate]);
 
   const {
     currentPlayer,

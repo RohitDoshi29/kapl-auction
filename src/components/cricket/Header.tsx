@@ -154,16 +154,16 @@ export function Header({ className }: { className?: string }) {
               )}
             </Button>
 
-            {/* Owner-only Team Analysis Button */}
+            {/* Owner-only Dashboard Button */}
             {isAuthenticated && isOwner && (
-              <Link to="/owner/team-analysis" title="View Team Analysis">
+              <Link to="/owner/dashboard" title="View Owner Dashboard">
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-10 sm:h-9 rounded-xl border-blue-500/35 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-bold text-xs px-2.5 gap-1.5 shadow-xs touch-manipulation"
                 >
                   <BarChart3 className="w-4 h-4 shrink-0" />
-                  <span className="hidden sm:inline">Analysis</span>
+                  <span className="hidden sm:inline">Dashboard</span>
                 </Button>
               </Link>
             )}
