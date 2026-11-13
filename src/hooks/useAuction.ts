@@ -317,10 +317,8 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
       let mappedPlayers: PlayerRecord[] = (allPlayers || [])
         .filter((p: any) => {
+          // Only exclude invalid players - include all others regardless of tournament_id
           if (!p || !p.name || /^[ab][1-4]-/.test(p.id)) return false;
-          if (p.tournament_id && p.tournament_id !== tournamentId && p.tournament_id !== 'all') {
-            return false;
-          }
           return true;
         })
         .map((p: any) => ({
@@ -343,9 +341,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       // Cache all remote DB players into local vault (preserving original tournamentId such as 'all')
       (allPlayers || []).forEach((rawPlayer: any) => {
         if (!rawPlayer || !rawPlayer.name || /^[ab][1-4]-/.test(rawPlayer.id)) return;
-        if (rawPlayer.tournament_id && rawPlayer.tournament_id !== tournamentId && rawPlayer.tournament_id !== 'all') {
-          return;
-        }
+        // Include all players regardless of tournament_id
         saveToPlayerVault({
           id: rawPlayer.id,
           userId: rawPlayer.user_id || undefined,
