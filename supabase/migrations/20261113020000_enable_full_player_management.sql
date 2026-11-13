@@ -16,10 +16,15 @@ $$;
 
 -- 2. Ensure user_roles has admin privileges
 INSERT INTO public.user_roles (email, role)
-VALUES 
+SELECT v.email, v.role
+FROM (VALUES 
   ('rohit.doshi2007@gmail.com', 'admin'),
   ('rohitdoshicolg@gmail.com', 'admin')
-ON CONFLICT (email, role) DO NOTHING;
+) AS v(email, role)
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.user_roles u 
+  WHERE lower(u.email) = lower(v.email) AND u.role = v.role
+);
 
 -- 3. RLS Policies on public.players for INSERT, UPDATE, and DELETE
 DROP POLICY IF EXISTS "Admins can manage all players" ON public.players;
