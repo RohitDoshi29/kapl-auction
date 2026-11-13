@@ -82,7 +82,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       if (raw) {
         const parsed: PlayerRecord[] = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          baseList = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || '') && !p.id?.startsWith('seed_') && !/^p_c_\d+(_w)?$/.test(p.id));
+          baseList = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || '') && !p.id?.startsWith('seed_'));
         }
       }
       return baseList;
@@ -98,7 +98,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       if (raw) {
         const parsed: PlayerRecord[] = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          list = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || '') && !p.id?.startsWith('seed_') && !/^p_c_\d+(_w)?$/.test(p.id));
+          list = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || '') && !p.id?.startsWith('seed_'));
         }
       }
 
@@ -231,7 +231,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
       let mappedPlayers: PlayerRecord[] = (allPlayers || [])
         .filter((p: any) => {
-          if (!p || !p.name || /^[ab][1-4]-/.test(p.id) || p.id?.startsWith('seed_') || /^p_c_\d+(_w)?$/.test(p.id)) return false;
+          if (!p || !p.name || /^[ab][1-4]-/.test(p.id) || p.id?.startsWith('seed_')) return false;
           // Filter by tournament if set on player (allows 'all' or matching tournament)
           if (p.tournament_id && p.tournament_id !== 'all' && p.tournament_id !== tournamentId) {
             return false;
@@ -319,7 +319,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
-              cachedPlayers = parsed.filter((p: any) => p && !/^[ab][1-4]-/.test(p.id) && !p.id?.startsWith('seed_') && !/^p_c_\d+(_w)?$/.test(p.id));
+              cachedPlayers = parsed.filter((p: any) => p && !/^[ab][1-4]-/.test(p.id) && !p.id?.startsWith('seed_'));
             }
           }
         } catch {}
