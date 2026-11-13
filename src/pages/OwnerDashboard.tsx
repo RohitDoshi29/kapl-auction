@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTournament } from '@/contexts/TournamentContext';
+import { useAuction } from '@/hooks/useAuction';
 import { supabase } from '@/integrations/supabase/client';
 import { Header } from '@/components/cricket/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, PieChart } from 'lucide-react';
+import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, PieChart, Radio, Gavel } from 'lucide-react';
 import { toast } from 'sonner';
 import { Team, PlayerRecord } from '@/lib/cricketTypes';
 
@@ -30,6 +31,7 @@ export default function OwnerDashboard() {
   const { isOwner, user, profile } = useAuth();
   const { activeTournamentId } = useTournament();
   const navigate = useNavigate();
+  const { currentPlayer, teams: auctionTeams, salesHistory } = useAuction(activeTournamentId || 'kapl-3-mens');
 
   const [myTeam, setMyTeam] = useState<TeamData | null>(null);
   const [otherTeams, setOtherTeams] = useState<TeamStats[]>([]);
@@ -400,6 +402,85 @@ export default function OwnerDashboard() {
                 </CardHeader>
               </Card>
 
+              {/* LIVE AUCTION SECTION */}
+              {currentPlayer && (
+                <Card className="border-red-500/20 bg-gradient-to-br from-red-500/10 to-transparent">
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center animate-pulse">
+                        <Radio className="w-5 h-5 text-red-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Gavel className="w-5 h-5" />
+                          Live Auction Update
+                        </CardTitle>
+                        <CardDescription>Currently on stage</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Current Player</p>
+                          <p className="text-xl font-bold text-cyan-400">{currentPlayer.name}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {currentPlayer.role?.replace('_', ' ').toUpperCase()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Base Price</p>
+                          <p className="text-xl font-bold text-amber-400">
+                            ₹{currentPlayer.base_price?.toLocaleString()}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">Category: {currentPlayer.category}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-2">Status</p>
+                          <Badge
+                            className={
+                              currentPlayer.auction_status === 'sold'
+                                ? 'bg-green-500/20 text-green-300'
+                                : currentPlayer.auction_status === 'unsold'
+                                  ? 'bg-rose-500/20 text-rose-300'
+                                  : 'bg-yellow-500/20 text-yellow-300 animate-pulse'
+                            }
+                          >
+                            {currentPlayer.auction_status?.toUpperCase() || 'ON AUCTION'}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recent Sales */}
+                    {salesHistory && salesHistory.length > 0 && (
+                      <div>
+                        <p className="text-sm font-semibold mb-3">Recent Sales (Last 5)</p>
+                        <div className="space-y-2">
+                          {salesHistory.slice(0, 5).map((sale: any, idx: number) => (
+                            <div key={idx} className="bg-white/5 rounded p-3 border border-white/10">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="text-sm font-medium text-white">{sale.player_name}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {sale.role?.replace('_', ' ')} • {sale.team_name}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-bold text-green-400">₹{sale.sold_price?.toLocaleString()}</p>
+                                  <p className="text-xs text-muted-foreground">Sold</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Squad Composition Analysis */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Role Distribution */}
@@ -768,6 +849,41 @@ export default function OwnerDashboard() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Tournament Auction Summary */}
+              {auctionTeams && auctionTeams.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Radio className="w-5 h-5 text-red-400" />
+                      Auction Tournament Status
+                    </CardTitle>
+                    <CardDescription>Overall auction progress across all teams</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                        <p className="text-xs text-muted-foreground mb-2">Total Teams</p>
+                        <p className="text-3xl font-bold text-blue-400">{auctionTeams.length}</p>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                        <p className="text-xs text-muted-foreground mb-2">Total Budget</p>
+                        <p className="text-3xl font-bold text-amber-400">
+                          ₹{(
+                            auctionTeams.reduce((sum: number, t: any) => sum + (t.initial_purse || 0), 0)
+                          ).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                        <p className="text-xs text-muted-foreground mb-2">Teams in Auction</p>
+                        <p className="text-3xl font-bold text-emerald-400">
+                          {auctionTeams.filter((t: any) => (t.remaining_purse || 0) > 0).length}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             {/* COMPETITION TAB */}
