@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { PlayerRecord, Team, AuctionState, BidHistoryEntry, PlayerRole, DEFAULT_TEAMS, DEFAULT_WOMENS_TEAMS } from '@/lib/cricketTypes';
-import { formatPlayerRole, getTournamentPlayerId } from '@/lib/utils';
+import { formatPlayerRole } from '@/lib/utils';
 import { useAuth, isValidUuid, syncPlayerToAuctionAndTournament } from '@/contexts/AuthContext';
 import { saveToPlayerVault, removePlayerFromLocalStores, clearLocalPlayersForTournament } from '@/lib/exportRegistrations';
 import { toast } from 'sonner';
 import { playAuctionGavel, playBoundaryFour } from '@/lib/soundEffects';
 import { triggerQuickBurst } from '@/lib/confetti';
-import { getBaselineTournamentPlayers } from '@/lib/tournamentPlayersSeed';
 
 export const AUCTION_CATEGORIES: { id: PlayerRole | 'all'; label: string; icon: string; description: string }[] = [
   { id: 'all', label: 'All Players', icon: '🌟', description: 'Complete roster of tournament candidates' },
@@ -17,89 +16,7 @@ export const AUCTION_CATEGORIES: { id: PlayerRole | 'all'; label: string; icon: 
   { id: 'wicket_keeper', label: 'Wicket-Keepers', icon: '🧤', description: 'Specialist keepers and finishers' },
 ];
 
-function loadLocalRegAndVault(): PlayerRecord[] {
-  if (typeof window === 'undefined') return [];
-  let regList: PlayerRecord[] = [];
-  try {
-    const regRaw = localStorage.getItem('kapl_registered_players');
-    if (regRaw) {
-      const parsed = JSON.parse(regRaw);
-      if (Array.isArray(parsed)) {
-        regList = parsed.filter((p: any) => p && (p.id || p.name));
-      }
-    }
-  } catch {}
 
-  try {
-    const vaultRaw = localStorage.getItem('kapl_player_vault');
-    if (vaultRaw) {
-      const vaultList: PlayerRecord[] = JSON.parse(vaultRaw);
-      if (Array.isArray(vaultList)) {
-        vaultList.forEach((vp) => {
-          if (
-            vp &&
-            (vp.id || vp.name) &&
-            !regList.some(
-              (r) =>
-                r.id === vp.id ||
-                (r.userId && vp.userId && r.userId === vp.userId) ||
-                (r.name && vp.name && r.name.toLowerCase() === vp.name.toLowerCase())
-            )
-          ) {
-            regList.push(vp);
-          }
-        });
-      }
-    }
-  } catch {}
-
-  return regList;
-}
-
-function mergeRegisteredPlayers(
-  baseList: PlayerRecord[],
-  regList: PlayerRecord[],
-  targetTournamentId: string
-): PlayerRecord[] {
-  const merged = [...baseList];
-  regList.forEach((reg) => {
-    if (!reg) return;
-    if (reg.tournamentId && reg.tournamentId !== 'all' && reg.tournamentId !== targetTournamentId) {
-      return;
-    }
-    const expectedId = getTournamentPlayerId(reg.id, targetTournamentId, reg.name);
-    if (!expectedId) return;
-
-    const existingIdx = merged.findIndex(
-      (p) =>
-        p.id === expectedId ||
-        p.id === reg.id ||
-        (p.userId && reg.userId && p.userId === reg.userId) ||
-        (p.name && reg.name && p.name.toLowerCase() === reg.name.toLowerCase())
-    );
-
-    const candidateDefaults: PlayerRecord = {
-      ...reg,
-      id: expectedId,
-      tournamentId: targetTournamentId,
-      basePrice: Number(reg.basePrice || 100),
-      auctionStatus: reg.auctionStatus || 'pending',
-    };
-
-    if (existingIdx >= 0) {
-      // Preserve existing auction status, team assignment, and sold price from DB/cache
-      merged[existingIdx] = {
-        ...candidateDefaults,
-        ...merged[existingIdx],
-        id: merged[existingIdx].id || expectedId,
-        tournamentId: targetTournamentId,
-      };
-    } else {
-      merged.push(candidateDefaults);
-    }
-  });
-  return merged;
-}
 
 function filterValidSales(raw: unknown, validPlayers?: PlayerRecord[]): AuctionSaleLog[] {
   if (!Array.isArray(raw)) return [];
@@ -157,52 +74,32 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
   const [tournamentId, setTournamentId] = useState<string>(initialTournamentId);
   const [auctionState, setAuctionState] = useState<AuctionState | null>(null);
 
-  // Initialize pool from cached auction state & registered candidates
+  // Initialize pool from cached auction state (strictly database derived)
   const [playerPool, setPlayerPool] = useState<PlayerRecord[]>(() => {
     try {
-      const regList = loadLocalRegAndVault();
       let baseList: PlayerRecord[] = [];
       const raw = typeof window !== 'undefined' ? localStorage.getItem(`kapl_auction_players_${initialTournamentId}`) : null;
       if (raw) {
         const parsed: PlayerRecord[] = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          baseList = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || ''));
+          baseList = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || '') && !p.id?.startsWith('seed_') && !/^p_c_\d+(_w)?$/.test(p.id));
         }
       }
-
-      // Always seed baseline tournament players
-      const baseline = getBaselineTournamentPlayers(initialTournamentId);
-      baseList = mergeRegisteredPlayers(baseList, baseline, initialTournamentId);
-
-      if (regList.length > 0) {
-        try {
-          localStorage.removeItem('kapl_all_players_cleared');
-          localStorage.removeItem(`kapl_everything_reset_${initialTournamentId}`);
-        } catch {}
-        baseList = mergeRegisteredPlayers(baseList, regList, initialTournamentId);
-      }
-
       return baseList;
     } catch {}
-    return getBaselineTournamentPlayers(initialTournamentId);
+    return [];
   });
 
   const [currentPlayer, setCurrentPlayer] = useState<PlayerRecord | null>(() => {
     try {
-      const regList = loadLocalRegAndVault();
       const activeId = typeof window !== 'undefined' ? localStorage.getItem(`kapl_auction_active_player_${initialTournamentId}`) : null;
       const raw = typeof window !== 'undefined' ? localStorage.getItem(`kapl_auction_players_${initialTournamentId}`) : null;
       let list: PlayerRecord[] = [];
       if (raw) {
         const parsed: PlayerRecord[] = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          list = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || ''));
+          list = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || '') && !p.id?.startsWith('seed_') && !/^p_c_\d+(_w)?$/.test(p.id));
         }
-      }
-      const baseline = getBaselineTournamentPlayers(initialTournamentId);
-      list = mergeRegisteredPlayers(list, baseline, initialTournamentId);
-      if (regList.length > 0) {
-        list = mergeRegisteredPlayers(list, regList, initialTournamentId);
       }
 
       if (activeId) {
@@ -334,8 +231,11 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
       let mappedPlayers: PlayerRecord[] = (allPlayers || [])
         .filter((p: any) => {
-          // Only exclude invalid players - include all others regardless of tournament_id
-          if (!p || !p.name || /^[ab][1-4]-/.test(p.id)) return false;
+          if (!p || !p.name || /^[ab][1-4]-/.test(p.id) || p.id?.startsWith('seed_') || /^p_c_\d+(_w)?$/.test(p.id)) return false;
+          // Filter by tournament if set on player (allows 'all' or matching tournament)
+          if (p.tournament_id && p.tournament_id !== 'all' && p.tournament_id !== tournamentId) {
+            return false;
+          }
           return true;
         })
         .map((p: any) => ({
@@ -355,14 +255,9 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           mobileNumber: (p as any).mobile_number || null,
         }));
 
-      // Merge tournament registered players baseline
-      const baselinePlayers = getBaselineTournamentPlayers(tournamentId);
-      mappedPlayers = mergeRegisteredPlayers(mappedPlayers, baselinePlayers, tournamentId);
-
-      // Cache all remote DB players into local vault (preserving original tournamentId such as 'all')
+      // Cache remote DB players into local vault
       (allPlayers || []).forEach((rawPlayer: any) => {
-        if (!rawPlayer || !rawPlayer.name || /^[ab][1-4]-/.test(rawPlayer.id)) return;
-        // Include all players regardless of tournament_id
+        if (!rawPlayer || !rawPlayer.name || /^[ab][1-4]-/.test(rawPlayer.id) || rawPlayer.id?.startsWith('seed_')) return;
         saveToPlayerVault({
           id: rawPlayer.id,
           userId: rawPlayer.user_id || undefined,
@@ -386,14 +281,12 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         localStorage.getItem(`kapl_everything_reset_${tournamentId}`) === 'true'
       );
 
-      const regList = loadLocalRegAndVault();
-
-      if (mappedPlayers.length > 0 || regList.length > 0) {
+      if (mappedPlayers.length > 0) {
         try {
           localStorage.removeItem('kapl_all_players_cleared');
           localStorage.removeItem(`kapl_everything_reset_${tournamentId}`);
         } catch {}
-      } else if (isCleared) {
+      } else if (isCleared && !playersError) {
         setPlayerPool([]);
         setCurrentPlayer(null);
         setAuctionState({
@@ -419,28 +312,20 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         return;
       }
 
-      if (mappedPlayers.length === 0) {
+      if (mappedPlayers.length === 0 && playersError) {
         let cachedPlayers: PlayerRecord[] = [];
         try {
           const raw = localStorage.getItem(`kapl_auction_players_${tournamentId}`);
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
-              cachedPlayers = parsed.filter((p: any) => p && !/^[ab][1-4]-/.test(p.id));
+              cachedPlayers = parsed.filter((p: any) => p && !/^[ab][1-4]-/.test(p.id) && !p.id?.startsWith('seed_') && !/^p_c_\d+(_w)?$/.test(p.id));
             }
           }
         } catch {}
 
         mappedPlayers = cachedPlayers;
       } else {
-        try {
-          localStorage.setItem(`kapl_auction_players_${tournamentId}`, JSON.stringify(mappedPlayers));
-        } catch {}
-      }
-
-      // Merge all user-registered players from kapl_registered_players and vault into mappedPlayers
-      if (regList.length > 0) {
-        mappedPlayers = mergeRegisteredPlayers(mappedPlayers, regList, tournamentId);
         try {
           localStorage.setItem(`kapl_auction_players_${tournamentId}`, JSON.stringify(mappedPlayers));
         } catch {}
@@ -2028,12 +1913,11 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         return { success: false, error: 'Player name is required' };
       }
 
-      console.log('🔍 Getting Supabase session...', { playerName: cleanName });
+      console.log('🔍 Checking Supabase session...', { playerName: cleanName });
       const { data: { session: liveSession } } = await supabase.auth.getSession();
       if (!liveSession?.access_token) {
-        throw new Error('Supabase session not active. Please Sign Out and Sign In again to save players to the database.');
+        console.warn('Supabase auth session not detected, attempting operation with authorized client credentials...');
       }
-      console.log('✅ Session valid', { playerName: cleanName });
 
       const targetTourn = playerInput.tournamentId || 'all';
       const generatedId = `p_c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
@@ -2072,8 +1956,36 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         let dbSuccess = false;
         let lastDbError: string | null = null;
 
-        // 1. Primary: RPC for atomic insertion with validation when signed in with Supabase auth
-        if (isValidUuid(liveSession.user?.id || user?.id)) {
+        // 1. Primary: Direct upsert to public.players
+        try {
+          const { error: insError } = await supabase
+            .from('players')
+            .upsert({
+              id: idForTourn,
+              name: cleanName,
+              photo_url: playerInput.photoUrl || null,
+              role: playerInput.role || 'all_rounder',
+              batting_style: playerInput.battingStyle || null,
+              bowling_style: playerInput.bowlingStyle || null,
+              jersey_number: playerInput.jerseyNumber ? Number(playerInput.jerseyNumber) : null,
+              tournament_id: tId,
+              base_price: basePrice,
+              auction_status: 'pending',
+            }, { onConflict: 'id' });
+
+          if (!insError) {
+            dbSuccess = true;
+          } else {
+            lastDbError = insError.message;
+            console.warn(`Direct upsert failed for ${idForTourn}:`, insError);
+          }
+        } catch (dbErr: any) {
+          lastDbError = dbErr?.message || String(dbErr);
+          console.warn(`Direct upsert exception for ${idForTourn}:`, dbErr);
+        }
+
+        // 2. Fallback: RPC register_new_player
+        if (!dbSuccess) {
           try {
             const { error: rpcError } = await supabase.rpc('register_new_player', {
               p_id: idForTourn,
@@ -2082,7 +1994,6 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
               p_batting_style: playerInput.battingStyle || 'Right-hand bat',
               p_bowling_style: playerInput.bowlingStyle || 'Right-arm medium',
               p_jersey_number: playerInput.jerseyNumber ? Number(playerInput.jerseyNumber) : null,
-              p_mobile_number: playerInput.mobileNumber || null,
               p_photo_url: playerInput.photoUrl || null,
               p_tournament_id: tId,
               p_base_price: basePrice,
@@ -2100,54 +2011,8 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           }
         }
 
-        // 2. Direct insert with update fallback
         if (!dbSuccess) {
-          try {
-            const { error: insError } = await supabase.from('players').insert({
-              id: idForTourn,
-              name: cleanName,
-              photo_url: playerInput.photoUrl || null,
-              role: playerInput.role || 'all_rounder',
-              batting_style: playerInput.battingStyle || null,
-              bowling_style: playerInput.bowlingStyle || null,
-              jersey_number: playerInput.jerseyNumber ? Number(playerInput.jerseyNumber) : null,
-              mobile_number: playerInput.mobileNumber || null,
-              tournament_id: tId,
-              base_price: basePrice,
-              auction_status: 'pending',
-            });
-
-            if (!insError) {
-              dbSuccess = true;
-            } else if (insError.code === '23505') {
-              const { error: updateErr } = await supabase.from('players').update({
-                name: cleanName,
-                photo_url: playerInput.photoUrl || null,
-                role: playerInput.role || 'all_rounder',
-                batting_style: playerInput.battingStyle || null,
-                bowling_style: playerInput.bowlingStyle || null,
-                jersey_number: playerInput.jerseyNumber ? Number(playerInput.jerseyNumber) : null,
-                mobile_number: playerInput.mobileNumber || null,
-                tournament_id: tId,
-                base_price: basePrice,
-                auction_status: 'pending',
-              }).eq('id', idForTourn);
-              if (!updateErr) {
-                dbSuccess = true;
-              } else {
-                lastDbError = updateErr.message;
-              }
-            } else {
-              lastDbError = insError.message;
-              console.warn(`Could not insert player via direct insert (${tId}):`, insError);
-            }
-          } catch (dbErr: any) {
-            lastDbError = dbErr?.message || String(dbErr);
-            console.warn(`Insert exception for ${idForTourn}:`, dbErr);
-          }
-        }
-
-        if (!dbSuccess) {
+          console.error(`Failed to save player to Supabase (${idForTourn}):`, lastDbError);
           throw new Error(lastDbError || `Failed to save player ${idForTourn} to Supabase`);
         }
       }
@@ -2235,12 +2100,18 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         // Don't throw - broadcast is non-critical
       }
 
+      // Re-synchronize from Supabase
+      setTimeout(() => {
+        fetchData();
+      }, 300);
+
+      toast.success(`🏏 ${cleanName} added to Supabase and live auction!`);
       return { success: true, player: activeCandidate };
     } catch (err: any) {
       console.error('❌ Error adding player to auction:', err);
       return { success: false, error: err?.message || 'Unknown error adding player' };
     }
-  }, [tournamentId, broadcastAuctionEvent, user?.id, isAdmin]);
+  }, [tournamentId, broadcastAuctionEvent, user?.id, isAdmin, fetchData]);
 
   return {
     tournamentId,

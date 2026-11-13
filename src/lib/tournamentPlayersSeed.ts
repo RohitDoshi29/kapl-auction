@@ -35,27 +35,10 @@ export const REGISTERED_TOURNAMENT_PLAYERS: Array<{
 ];
 
 /**
- * Returns baseline tournament players for a given tournament ID,
- * ensuring unique stable IDs so they match INSERT_ALL_PLAYERS.sql.
+ * Baseline tournament seed function.
+ * Returns empty array so that the Supabase database table `public.players`
+ * remains the strict single source of truth without phantom or hardcoded players.
  */
-export function getBaselineTournamentPlayers(tournamentId: string): PlayerRecord[] {
-  const isWomens = tournamentId === 'kapl-3-womens';
-  const prefix = isWomens ? 'p_c_w_' : 'p_c_';
-
-  return REGISTERED_TOURNAMENT_PLAYERS.map((p, idx) => {
-    const id = isWomens ? `p_c_${idx + 1}_w` : `p_c_${idx + 1}`;
-    return {
-      id,
-      tournamentId,
-      name: p.name,
-      role: p.role,
-      battingStyle: p.battingStyle,
-      bowlingStyle: p.bowlingStyle,
-      basePrice: p.basePrice,
-      auctionStatus: 'pending',
-      teamId: null,
-      soldPrice: null,
-      mobileNumber: p.mobile,
-    };
-  });
+export function getBaselineTournamentPlayers(_tournamentId: string): PlayerRecord[] {
+  return [];
 }

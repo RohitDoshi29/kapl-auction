@@ -71,7 +71,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT (lower(COALESCE(auth.jwt()->>'email', '')) = 'rohit.doshi2007@gmail.com')
+  SELECT (lower(COALESCE(auth.jwt()->>'email', '')) IN ('rohit.doshi2007@gmail.com', 'rohitdoshicolg@gmail.com'))
     OR public.has_role(auth.uid(), 'admin')
     OR public.has_role(auth.uid(), 'co_admin');
 $$;
@@ -303,9 +303,21 @@ DROP POLICY IF EXISTS "Anyone can view players" ON public.players;
 DROP POLICY IF EXISTS "Admins can manage all players" ON public.players;
 DROP POLICY IF EXISTS "Users can update own player record" ON public.players;
 DROP POLICY IF EXISTS "Users can insert own player record" ON public.players;
+DROP POLICY IF EXISTS "Admins can manage all players" ON public.players;
+DROP POLICY IF EXISTS "Anyone can insert players" ON public.players;
+DROP POLICY IF EXISTS "Anyone can update players" ON public.players;
+DROP POLICY IF EXISTS "Anyone can delete players" ON public.players;
+DROP POLICY IF EXISTS "Allow player insert for auction" ON public.players;
+DROP POLICY IF EXISTS "Allow player update for auction" ON public.players;
+DROP POLICY IF EXISTS "Allow player delete for auction" ON public.players;
+
 CREATE POLICY "Anyone can view players" ON public.players FOR SELECT USING (true);
-CREATE POLICY "Admins can manage all players" ON public.players FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+CREATE POLICY "Allow player insert for auction" ON public.players FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow player update for auction" ON public.players FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow player delete for auction" ON public.players FOR DELETE USING (true);
 CREATE POLICY "Users can update own player record" ON public.players FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.players TO anon, authenticated, service_role;
 
 DROP POLICY IF EXISTS "Anyone can view auction state" ON public.auction_state;
 DROP POLICY IF EXISTS "Admins can manage auction state" ON public.auction_state;

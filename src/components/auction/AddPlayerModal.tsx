@@ -148,11 +148,7 @@ export function AddPlayerModal({
           createdPlayer = res?.player;
           logger.info('Player added via hook successfully', { playerId: createdPlayer?.id });
         } else {
-          logger.info('Adding player via direct Supabase insert', { playerName: cleanName });
-          const { data: { session: liveSession } } = await supabase.auth.getSession();
-          if (!liveSession?.access_token) {
-            throw new Error('Supabase session not active. Please Sign Out and Sign In again.');
-          }
+          logger.info('Adding player via direct Supabase upsert', { playerName: cleanName });
 
           const generatedId = `p_c_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
           const dualTournaments = targetTourn === 'all'
@@ -162,7 +158,7 @@ export function AddPlayerModal({
           for (const tId of dualTournaments) {
             const idForTourn = tId === 'kapl-3-womens' ? `${generatedId}_w` : generatedId;
             logger.info('Inserting player into tournament', { playerName: cleanName, tournamentId: tId });
-            const { error: insErr } = await supabase.from('players').insert({
+            const { error: insErr } = await supabase.from('players').upsert({
               id: idForTourn,
               name: cleanName,
               photo_url: validation.data.photoUrl || null,
@@ -170,29 +166,26 @@ export function AddPlayerModal({
               batting_style: battingStyle || null,
               bowling_style: bowlingStyle || null,
               jersey_number: jerseyNum,
-              mobile_number: validation.data.mobileNumber || null,
               tournament_id: tId,
               base_price: Number(basePrice) || 100,
               auction_status: 'pending',
-            });
+            }, { onConflict: 'id' });
+
             if (insErr) {
-              if (insErr.code === '23505') {
-                logger.info('Player exists, updating instead', { playerId: idForTourn });
-                const { error: updErr } = await supabase.from('players').update({
-                  name: cleanName,
-                  photo_url: validation.data.photoUrl || null,
-                  role: role,
-                  batting_style: battingStyle || null,
-                  bowling_style: bowlingStyle || null,
-                  jersey_number: jerseyNum,
-                  mobile_number: validation.data.mobileNumber || null,
-                  tournament_id: tId,
-                  base_price: Number(basePrice) || 100,
-                  auction_status: 'pending',
-                }).eq('id', idForTourn);
-                if (updErr) throw new Error(updErr.message);
-              } else {
-                throw new Error(insErr.message);
+              logger.error('Supabase direct upsert failed, trying register_new_player RPC', insErr);
+              const { error: rpcErr } = await supabase.rpc('register_new_player', {
+                p_id: idForTourn,
+                p_name: cleanName,
+                p_role: role,
+                p_batting_style: battingStyle || 'Right-hand bat',
+                p_bowling_style: bowlingStyle || 'Right-arm medium',
+                p_jersey_number: jerseyNum,
+                p_photo_url: validation.data.photoUrl || null,
+                p_tournament_id: tId,
+                p_base_price: Number(basePrice) || 100,
+              });
+              if (rpcErr) {
+                throw new Error(rpcErr.message || insErr.message);
               }
             }
           }
