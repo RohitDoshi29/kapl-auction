@@ -42,16 +42,20 @@ interface SinglePlayerAuctionStageProps {
   player: PlayerRecord | null;
   playerPool?: PlayerRecord[];
   teams: Team[];
-  isAdmin: boolean;
+  isAdmin?: boolean;
   tournamentId?: string;
+  selectedPlayerId?: string;
   onAddPlayer?: (data: any) => Promise<any>;
   onResetAuction?: () => void;
-  onNext: () => void;
-  onPrev: () => void;
+  onNext?: () => void;
+  onPrev?: () => void;
   onSpotlightPlayer?: (player: PlayerRecord) => void;
-  onDecideSold: (playerId: string, teamId: string, amount: number) => void;
-  onDecideUnsold: (playerId: string) => void;
-  onRevert: (playerId: string) => void;
+  onPlaceBid?: (teamId: string, amount: number) => Promise<void> | void;
+  currentBid?: number;
+  highestBidderTeamId?: string | null;
+  onDecideSold?: (playerId: string, teamId: string, amount: number) => void;
+  onDecideUnsold?: (playerId: string) => void;
+  onRevert?: (playerId: string) => void;
   salesHistory?: AuctionSaleLog[];
   autoAdvanceCountdown?: number | null;
   onCancelAutoAdvance?: () => void;
@@ -61,16 +65,19 @@ export function SinglePlayerAuctionStage({
   player,
   playerPool = [],
   teams = [],
-  isAdmin,
+  isAdmin = false,
   tournamentId = 'kapl-3-mens',
   onAddPlayer,
   onResetAuction,
-  onNext,
-  onPrev,
+  onNext = () => {},
+  onPrev = () => {},
   onSpotlightPlayer,
-  onDecideSold,
-  onDecideUnsold,
-  onRevert,
+  onPlaceBid,
+  currentBid,
+  highestBidderTeamId,
+  onDecideSold = () => {},
+  onDecideUnsold = () => {},
+  onRevert = () => {},
   salesHistory = [],
   autoAdvanceCountdown = null,
   onCancelAutoAdvance,
@@ -118,6 +125,29 @@ export function SinglePlayerAuctionStage({
       setSelectedTeamId(teams[0].id);
     }
   }, [player, teams, selectedTeamId]);
+
+  // Franchise Owner live bidding state & auto-sync
+  const [ownerBidAmount, setOwnerBidAmount] = useState<number>(() => {
+    return Math.max(player?.basePrice || 100, currentBid || 100);
+  });
+
+  useEffect(() => {
+    const minBid = Math.max(player?.basePrice || 100, (currentBid || 0) > 0 ? (currentBid || 0) + 50 : player?.basePrice || 100);
+    setOwnerBidAmount(minBid);
+  }, [player?.id, player?.basePrice, currentBid]);
+
+  // Sync admin decision team and sold price when a live bid is placed
+  useEffect(() => {
+    if (highestBidderTeamId && (teams || []).some((t) => t.id === highestBidderTeamId)) {
+      setSelectedTeamId(highestBidderTeamId);
+    }
+  }, [highestBidderTeamId, teams]);
+
+  useEffect(() => {
+    if (currentBid && currentBid > 0) {
+      setSoldAmount(currentBid);
+    }
+  }, [currentBid]);
 
   const fallbackTeam: Team = {
     id: 'placeholder',
@@ -221,6 +251,32 @@ export function SinglePlayerAuctionStage({
       return;
     }
     onDecideSold(player.id, selectedTeamId, soldAmount);
+  };
+
+  const handleOwnerPlaceBid = async () => {
+    if (!player) return;
+    const teamToBid = (isViewerTheOwner ? userOwnedTeam : null) || inspectedTeam;
+    if (!teamToBid) {
+      toast.error('Please select a franchise team to place bid');
+      return;
+    }
+    if (onPlaceBid) {
+      await onPlaceBid(teamToBid.id, ownerBidAmount);
+    } else {
+      toast.error('Bidding service unavailable');
+    }
+  };
+
+  const handleOwnerBuyPlayer = async () => {
+    if (!player) return;
+    const teamToBuy = (isViewerTheOwner ? userOwnedTeam : null) || inspectedTeam;
+    if (!teamToBuy) {
+      toast.error('Please select a franchise team to buy player');
+      return;
+    }
+    if (onDecideSold) {
+      onDecideSold(player.id, teamToBuy.id, ownerBidAmount);
+    }
   };
 
   // Automatically spotlight first pending player if no player is spotlighted
@@ -815,6 +871,110 @@ export function SinglePlayerAuctionStage({
                     </span>
                   </div>
                 </div>
+
+                {/* 1.5 LIVE FRANCHISE BIDDING & BUYING CONSOLE */}
+                {player && !isSold && !isUnsold && (
+                  <div className="p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/30 space-y-3 shadow-inner">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Gavel className="w-4 h-4 text-amber-400" />
+                        <span className="font-black text-sm text-amber-300 uppercase tracking-wider">
+                          Live Franchise Bidding • {inspectedTeam.name}
+                        </span>
+                      </div>
+                      {highestBidderTeamId ? (
+                        <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold gap-1 self-start sm:self-auto">
+                          <Crown className="w-3 h-3 text-amber-400" />
+                          Leading: {teams.find(t => t.id === highestBidderTeamId)?.name || 'Team'} (₹{(currentBid || player.basePrice || 100).toLocaleString()})
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-amber-500/30 text-amber-400 text-xs font-mono self-start sm:self-auto">
+                          Base Price: ₹{(player.basePrice || 100).toLocaleString()}
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
+                        <span>Bid Amount for {inspectedTeam.name}:</span>
+                        <span className="text-amber-400 font-mono">
+                          Wallet Left: {formatMoney(remainingPurse)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">
+                            ₹
+                          </span>
+                          <Input
+                            type="number"
+                            value={ownerBidAmount}
+                            onChange={(e) => setOwnerBidAmount(Number(e.target.value) || 0)}
+                            className="pl-8 text-base sm:text-lg font-black h-11 bg-white/[0.04] border-white/10 rounded-xl"
+                            min={player.basePrice || 100}
+                            step={50}
+                          />
+                        </div>
+
+                        {/* Quick Increment Buttons */}
+                        <div className="grid grid-cols-4 sm:flex gap-1.5">
+                          {[50, 100, 250, 500].map((inc) => (
+                            <Button
+                              key={inc}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-11 px-2.5 font-bold text-xs rounded-xl touch-manipulation hover:bg-amber-500/15 hover:border-amber-500/40"
+                              onClick={() => setOwnerBidAmount((prev) => Math.max(prev, currentBid || player.basePrice || 100) + inc)}
+                            >
+                              +{inc}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Warnings */}
+                    {currentSquadCount >= maxSquadSize && (
+                      <div className="flex items-center gap-1.5 text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2.5 rounded-xl font-bold">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>Squad full: {inspectedTeam.name} has reached the max limit ({currentSquadCount}/{maxSquadSize}).</span>
+                      </div>
+                    )}
+                    {ownerBidAmount > remainingPurse && (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl font-bold">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span>Purse deficit: {inspectedTeam.name} only has {formatMoney(remainingPurse)} available.</span>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <Button
+                        type="button"
+                        size="lg"
+                        disabled={currentSquadCount >= maxSquadSize || ownerBidAmount > remainingPurse}
+                        onClick={handleOwnerPlaceBid}
+                        className="min-h-[46px] h-auto py-2.5 px-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs sm:text-sm gap-2 rounded-xl shadow-md disabled:opacity-50 touch-manipulation"
+                      >
+                        <Gavel className="w-4 h-4 shrink-0" />
+                        <span>Place Bid for {inspectedTeam.name} ({formatMoney(ownerBidAmount)})</span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="lg"
+                        disabled={currentSquadCount >= maxSquadSize || ownerBidAmount > remainingPurse}
+                        onClick={handleOwnerBuyPlayer}
+                        className="min-h-[46px] h-auto py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-xs sm:text-sm gap-2 rounded-xl shadow-md disabled:opacity-50 touch-manipulation"
+                      >
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                        <span>Buy Player for {inspectedTeam.name} ({formatMoney(ownerBidAmount)})</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Role Balance & Keeper Alert */}
                 {currentSquadCount > 0 && keepersCount === 0 && (

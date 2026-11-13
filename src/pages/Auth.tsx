@@ -72,8 +72,8 @@ export default function Auth() {
       const normalizedEmail = email.toLowerCase().trim();
       console.log('Checking role for email:', normalizedEmail);
 
-      const { data, error } = await supabase
-        .from('user_roles')
+      const { data, error } = await (supabase
+        .from('user_roles') as any)
         .select('role')
         .eq('email', normalizedEmail)
         .maybeSingle();

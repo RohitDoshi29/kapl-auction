@@ -8,14 +8,25 @@ import { Header } from '@/components/cricket/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, PieChart, Radio, Gavel, Sparkles } from 'lucide-react';
+import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, PieChart, Radio, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { Team, PlayerRecord } from '@/lib/cricketTypes';
 import { SinglePlayerAuctionStage } from '@/components/auction/SinglePlayerAuctionStage';
 import { CategoryPlayerGrid } from '@/components/auction/CategoryPlayerGrid';
 
-interface TeamData extends Team {
-  players: PlayerRecord[];
+interface TeamData {
+  id: string;
+  name: string;
+  logo?: string | null;
+  group?: string;
+  initialPurse?: number;
+  initial_purse?: number;
+  remainingPurse?: number;
+  remaining_purse?: number;
+  ownerName?: string;
+  owner_name?: string;
+  ownerEmail?: string | null;
+  owner_email?: string | null;
+  players: any[];
 }
 
 interface TeamStats {
@@ -33,7 +44,21 @@ export default function OwnerDashboard() {
   const { isOwner, user, profile } = useAuth();
   const { activeTournamentId } = useTournament();
   const navigate = useNavigate();
-  const { currentPlayer, teams: auctionTeams, salesHistory, playerPool, selectedCategory, setSelectedCategory } = useAuction(activeTournamentId || 'kapl-3-mens');
+  const {
+    currentPlayer,
+    teams: auctionTeams,
+    salesHistory,
+    playerPool,
+    selectedCategory,
+    setSelectedCategory,
+    spotlightPlayer,
+    nextPlayer,
+    placeBid,
+    adminDecideSold,
+    adminDecideUnsold,
+    revertPlayerStatus,
+    auctionState,
+  } = useAuction(activeTournamentId || 'kapl-3-mens');
 
   const [myTeam, setMyTeam] = useState<TeamData | null>(null);
   const [otherTeams, setOtherTeams] = useState<TeamStats[]>([]);
@@ -55,60 +80,83 @@ export default function OwnerDashboard() {
     } else {
       fetchDashboardData();
     }
-  }, [isOwner, activeTournamentId, user]);
+  }, [isOwner, activeTournamentId, user, playerPool]);
 
   const fetchDashboardData = async () => {
     if (!activeTournamentId || !user?.email) return;
 
     try {
       setIsLoading(true);
+      const cleanEmail = user.email.toLowerCase().trim();
 
-      // Fetch my team
-      const { data: myTeamData, error: myTeamError } = await supabase
+      // Fetch all teams for this tournament
+      const { data: allTeamsData, error: allTeamsError } = await supabase
         .from('teams')
         .select('*')
-        .eq('tournament_id', activeTournamentId)
-        .eq('owner_email', user.email)
-        .single();
+        .eq('tournament_id', activeTournamentId);
 
-      if (!myTeamError && myTeamData) {
-        // Fetch my team's players
+      const myTeamData = (allTeamsData || []).find(
+        (t) => (t.owner_email && t.owner_email.toLowerCase().trim() === cleanEmail) || t.owner_user_id === user.id
+      ) || null;
+
+      if (myTeamData) {
+        // Fetch my team's players using granted safe columns
         const { data: myPlayersData } = await supabase
           .from('players')
-          .select('*')
+          .select('id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status, created_at, updated_at')
           .eq('team_id', myTeamData.id)
           .eq('tournament_id', activeTournamentId);
 
+        // Merge in-memory sold players from playerPool
+        const poolSold = (playerPool || []).filter(
+          (p) => p.teamId === myTeamData.id && p.auctionStatus === 'sold'
+        );
+        const combined = [...(myPlayersData || [])];
+        poolSold.forEach((p) => {
+          if (!combined.some((cp) => cp.id === p.id)) {
+            combined.push({
+              id: p.id,
+              name: p.name,
+              photo_url: p.photoUrl || null,
+              role: p.role,
+              batting_style: p.battingStyle || null,
+              bowling_style: p.bowlingStyle || null,
+              tournament_id: p.tournamentId || activeTournamentId,
+              team_id: myTeamData.id,
+              jersey_number: p.jerseyNumber || null,
+              base_price: p.basePrice || 100,
+              sold_price: p.soldPrice || p.basePrice || 100,
+              auction_status: 'sold',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            } as any);
+          }
+        });
+
         const teamWithPlayers: TeamData = {
           ...myTeamData,
-          players: myPlayersData || [],
+          players: combined,
         };
 
         setMyTeam(teamWithPlayers);
         calculateMyStats(teamWithPlayers);
       }
 
-      // Fetch all teams for comparison
-      const { data: allTeamsData, error: allTeamsError } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('tournament_id', activeTournamentId);
-
       if (!allTeamsError && allTeamsData) {
         // Fetch player counts and spending for each team
         const teamsStatsPromises = allTeamsData.map(async (team) => {
           const { data: players } = await supabase
             .from('players')
-            .select('*')
+            .select('id, name, photo_url, role, base_price, sold_price, auction_status, team_id')
             .eq('team_id', team.id)
             .eq('tournament_id', activeTournamentId);
 
           const playerList = players || [];
           const totalSpent = playerList.reduce(
-            (sum, p) => sum + (p.sold_price || p.base_price || 0),
+            (sum, p: any) => sum + (p.sold_price || p.soldPrice || p.base_price || p.basePrice || 0),
             0
           );
-          const soldPlayers = playerList.filter((p) => p.auction_status === 'sold').length;
+          const soldPlayers = playerList.filter((p: any) => p.auction_status === 'sold' || p.auctionStatus === 'sold').length;
 
           return {
             teamId: team.id,
@@ -117,8 +165,8 @@ export default function OwnerDashboard() {
             totalPlayers: playerList.length,
             soldPlayers,
             totalSpent,
-            remainingPurse: (team.initial_purse || 10000) - totalSpent,
-            initialPurse: team.initial_purse || 10000,
+            remainingPurse: (team.initial_purse || (team as any).initialPurse || 10000) - totalSpent,
+            initialPurse: team.initial_purse || (team as any).initialPurse || 10000,
           };
         });
 
@@ -146,8 +194,8 @@ export default function OwnerDashboard() {
       bowlers: players.filter((p) => p.role === 'bowler').length,
       allRounders: players.filter((p) => p.role === 'all_rounder').length,
       wicketKeepers: players.filter((p) => p.role === 'wicket_keeper').length,
-      totalValue: players.reduce((sum, p) => sum + (p.sold_price || p.base_price || 0), 0),
-      soldPlayers: players.filter((p) => p.auction_status === 'sold').length,
+      totalValue: players.reduce((sum, p) => sum + (p.sold_price || p.soldPrice || p.base_price || p.basePrice || 0), 0),
+      soldPlayers: players.filter((p) => p.auction_status === 'sold' || p.auctionStatus === 'sold').length,
     };
     setMyStats(stats);
   };
@@ -156,49 +204,148 @@ export default function OwnerDashboard() {
     return null;
   }
 
+  const myTeamInitialPurse = myTeam ? (myTeam.initialPurse || myTeam.initial_purse || 10000) : 10000;
+  const myTeamRemainingPurse = Math.max(0, myTeamInitialPurse - myStats.totalValue);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         {/* Header */}
-        <div className="flex items-center gap-3 border border-white/[0.08] bg-card/85 backdrop-blur-xl rounded-2xl p-5 shadow-xl">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-yellow-500/15 border border-amber-500/30 flex items-center justify-center">
-            <Crown className="w-6 h-6 text-amber-400" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-white/[0.08] bg-card/85 backdrop-blur-xl rounded-2xl p-5 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-yellow-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Crown className="w-6 h-6 text-amber-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black text-foreground">Owner Command Center</h1>
+                {myTeam && <Badge className="bg-amber-500 text-slate-950 font-black">{myTeam.name}</Badge>}
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Bid on live auction players, manage your franchise squad, and monitor competitor purse limits
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-foreground">Owner Dashboard</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Manage your team and monitor competition</p>
-          </div>
+
+          {/* Quick Wallet Pill */}
+          {myTeam && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-xs font-bold">
+              <Wallet className="w-4 h-4 text-amber-400" />
+              <span>Wallet: ₹{myTeamRemainingPurse.toLocaleString()}</span>
+              <span className="text-muted-foreground">• Squad: {myStats.totalPlayers}/10</span>
+            </div>
+          )}
         </div>
 
         {isLoading ? (
-          <div className="text-center py-12 text-muted-foreground">Loading dashboard...</div>
+          <div className="text-center py-12 text-muted-foreground">Loading franchise dashboard...</div>
         ) : !myTeam ? (
           <Card className="border-amber-500/20 bg-amber-500/5">
             <CardContent className="pt-8 text-center space-y-3">
-              <p className="text-muted-foreground">No team assigned to your account yet</p>
+              <p className="text-muted-foreground">No franchise team is currently assigned to {user?.email}.</p>
+              <p className="text-xs text-muted-foreground">Please request the tournament admin to assign an owner email to your franchise in Admin Settings.</p>
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="my-team" className="w-full space-y-6">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="my-team">My Team</TabsTrigger>
-              <TabsTrigger value="team-analysis">Live Dashboard</TabsTrigger>
+          <Tabs defaultValue="spotlight" className="w-full space-y-6">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4 h-auto p-1.5 bg-card/80 backdrop-blur-md border border-white/10 rounded-2xl gap-1">
+              <TabsTrigger value="spotlight" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+                <Radio className="w-3.5 h-3.5" />
+                <span>Live Stage</span>
+              </TabsTrigger>
+              <TabsTrigger value="players" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Player Pool</span>
+              </TabsTrigger>
+              <TabsTrigger value="my-team" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+                <Crown className="w-3.5 h-3.5" />
+                <span>My Squad ({myStats.totalPlayers})</span>
+              </TabsTrigger>
+              <TabsTrigger value="competition" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Competitors</span>
+              </TabsTrigger>
             </TabsList>
 
-            {/* MY TEAM TAB */}
+            {/* 1. SPOTLIGHT / LIVE AUCTION STAGE TAB */}
+            <TabsContent value="spotlight" className="space-y-6">
+              {currentPlayer ? (
+                <SinglePlayerAuctionStage
+                  player={currentPlayer}
+                  playerPool={playerPool}
+                  teams={auctionTeams}
+                  isAdmin={profile?.role === 'admin' || profile?.role === 'super_admin'}
+                  tournamentId={activeTournamentId}
+                  onNext={() => nextPlayer('next')}
+                  onPrev={() => nextPlayer('prev')}
+                  onSpotlightPlayer={spotlightPlayer}
+                  onPlaceBid={placeBid}
+                  currentBid={auctionState?.currentBid}
+                  highestBidderTeamId={auctionState?.highestBidderTeamId}
+                  onDecideSold={adminDecideSold}
+                  onDecideUnsold={adminDecideUnsold}
+                  onRevert={revertPlayerStatus}
+                  salesHistory={salesHistory}
+                />
+              ) : (
+                <Card className="border border-white/10 p-8 text-center bg-card/60 rounded-3xl shadow-xl">
+                  <CardContent className="space-y-3">
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
+                      <Radio className="w-8 h-8 animate-pulse" />
+                    </div>
+                    <p className="font-bold text-lg text-foreground">Waiting for Auction Spotlight</p>
+                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                      No candidate is currently on the stage. Switch to the Player Pool tab to browse registered candidates and spotlight one.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* 2. PLAYERS / CATEGORIES POOL TAB */}
+            <TabsContent value="players" className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border border-white/10 bg-card/85 p-4 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg text-foreground">Auction Player Pool</h3>
+                    <p className="text-xs text-muted-foreground">Browse all registered players, filter by role, and click any player to spotlight</p>
+                  </div>
+                </div>
+                <Badge className="bg-blue-500/20 text-blue-300 font-mono text-xs px-2.5 py-1">
+                  {playerPool?.length || 0} Registered Candidates
+                </Badge>
+              </div>
+
+              <CategoryPlayerGrid
+                players={playerPool}
+                teams={auctionTeams}
+                selectedCategory={selectedCategory}
+                selectedPlayerId={currentPlayer?.id}
+                onSelectCategory={setSelectedCategory}
+                onSelectPlayer={(p) => {
+                  spotlightPlayer(p);
+                  toast.success(`Spotlighted ${p.name} on the auction stage`);
+                }}
+              />
+            </TabsContent>
+
+            {/* 3. MY TEAM FRANCHISE SQUAD TAB */}
             <TabsContent value="my-team" className="space-y-6">
-              {/* My Team Header */}
+              {/* My Team Header Card */}
               <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/10 to-transparent">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-2xl">{myTeam.name}</CardTitle>
-                      <CardDescription>Your franchise team</CardDescription>
+                      <CardTitle className="text-2xl font-black">{myTeam.name}</CardTitle>
+                      <CardDescription>Your Official KAPL 3.0 Franchise Squad</CardDescription>
                     </div>
                     {myTeam.group && (
-                      <Badge className="bg-amber-500 text-black">Group {myTeam.group}</Badge>
+                      <Badge className="bg-amber-500 text-black font-bold">Group {myTeam.group}</Badge>
                     )}
                   </div>
                 </CardHeader>
@@ -214,9 +361,9 @@ export default function OwnerDashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">{myStats.totalPlayers}</div>
+                    <div className="text-3xl font-bold">{myStats.totalPlayers} / 10</div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {myStats.soldPlayers} sold • {myStats.totalPlayers - myStats.soldPlayers} pending
+                      {10 - myStats.totalPlayers} Open Draft Slots Left
                     </p>
                   </CardContent>
                 </Card>
@@ -244,11 +391,11 @@ export default function OwnerDashboard() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold">
-                      ₹{((myTeam.initial_purse || 10000) - myStats.totalValue).toLocaleString()}
+                    <div className="text-3xl font-bold text-emerald-400">
+                      ₹{myTeamRemainingPurse.toLocaleString()}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      of ₹{(myTeam.initial_purse || 10000).toLocaleString()} budget
+                      of ₹{myTeamInitialPurse.toLocaleString()} total budget
                     </p>
                   </CardContent>
                 </Card>
@@ -257,23 +404,18 @@ export default function OwnerDashboard() {
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-green-400" />
-                      Spending %
+                      Budget Utilization
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-3xl font-bold">
-                      {Math.round(
-                        (myStats.totalValue / (myTeam.initial_purse || 10000)) * 100
-                      )}%
+                      {Math.round((myStats.totalValue / myTeamInitialPurse) * 100)}%
                     </div>
                     <div className="w-full bg-white/10 rounded-full h-2 mt-3">
                       <div
                         className="bg-amber-500 h-2 rounded-full transition-all"
                         style={{
-                          width: `${Math.min(
-                            (myStats.totalValue / (myTeam.initial_purse || 10000)) * 100,
-                            100
-                          )}%`,
+                          width: `${Math.min((myStats.totalValue / myTeamInitialPurse) * 100, 100)}%`,
                         }}
                       />
                     </div>
@@ -281,11 +423,11 @@ export default function OwnerDashboard() {
                 </Card>
               </div>
 
-              {/* Player Composition */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {/* Player Composition Breakdown */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Batters</CardTitle>
+                    <CardTitle className="text-sm">🏏 Batters</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-blue-400">{myStats.batters}</div>
@@ -293,7 +435,7 @@ export default function OwnerDashboard() {
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Bowlers</CardTitle>
+                    <CardTitle className="text-sm">⚡ Bowlers</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-emerald-400">{myStats.bowlers}</div>
@@ -301,7 +443,7 @@ export default function OwnerDashboard() {
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">All-Rounders</CardTitle>
+                    <CardTitle className="text-sm">👑 All-Rounders</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-purple-400">{myStats.allRounders}</div>
@@ -309,793 +451,91 @@ export default function OwnerDashboard() {
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Wicket Keepers</CardTitle>
+                    <CardTitle className="text-sm">🧤 Wicket Keepers</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-amber-400">{myStats.wicketKeepers}</div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">Sold</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-400">{myStats.soldPlayers}</div>
+                    <div className="text-2xl font-bold text-yellow-400">{myStats.wicketKeepers}</div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* My Squad */}
+              {/* Acquired Players Table */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Your Squad</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Drafted Roster ({myTeam.players.length})</CardTitle>
+                      <CardDescription>Players acquired by your franchise</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Name
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Role
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Base Price
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Sold Price
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Status
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {myTeam.players.map((player) => (
-                          <tr key={player.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                            <td className="py-3 px-4 font-medium">{player.name}</td>
-                            <td className="py-3 px-4">
-                              <Badge variant="outline" className="capitalize">
-                                {player.role?.replace('_', ' ')}
-                              </Badge>
-                            </td>
-                            <td className="py-3 px-4">₹{player.base_price?.toLocaleString()}</td>
-                            <td className="py-3 px-4">
-                              {player.sold_price ? `₹${player.sold_price.toLocaleString()}` : '-'}
-                            </td>
-                            <td className="py-3 px-4">
-                              <Badge
-                                className={
-                                  player.auction_status === 'sold'
-                                    ? 'bg-green-500/20 text-green-300'
-                                    : player.auction_status === 'unsold'
-                                      ? 'bg-rose-500/20 text-rose-300'
-                                      : 'bg-amber-500/20 text-amber-300'
-                                }
-                              >
-                                {player.auction_status?.toUpperCase()}
-                              </Badge>
-                            </td>
+                  {myTeam.players.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground space-y-2">
+                      <p className="font-semibold text-foreground">No players drafted yet</p>
+                      <p className="text-xs">Head to the Live Stage tab during the auction to place bids and acquire candidates for your team.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Player</th>
+                            <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Role</th>
+                            <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Base Price</th>
+                            <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Sold Price</th>
+                            <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Status</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* LIVE DASHBOARD TAB */}
-            <TabsContent value="team-analysis" className="space-y-6">
-              {/* AUCTION LIVE SECTION */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* LEFT: Spotlight Stage */}
-                <div className="lg:col-span-1">
-                  <Card className="border-red-500/20 bg-gradient-to-br from-red-500/10 to-transparent">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Radio className="w-4 h-4 text-red-400 animate-pulse" />
-                          <CardTitle className="text-base">Spotlight Stage</CardTitle>
-                        </div>
-                        <Badge className="text-xs bg-green-500/20 text-green-300 animate-pulse">Live</Badge>
-                      </div>
-                    </CardHeader>
-                  </Card>
-                  {currentPlayer ? (
-                    <>
-                      <Card className="border-white/10 mt-2"><CardContent className="pt-3 text-sm"><p className="font-bold text-cyan-400">{currentPlayer.name}</p><p className="text-xs text-muted-foreground">{currentPlayer.role?.replace('_', ' ')}</p><p className="font-bold text-amber-400 mt-2">₹{currentPlayer.base_price?.toLocaleString()}</p></CardContent></Card>
-                      <div className="mt-2"><SinglePlayerAuctionStage player={currentPlayer} teams={auctionTeams} selectedPlayerId={currentPlayer?.id} /></div>
-                    </>
-                  ) : (
-                    <Card className="mt-2"><CardContent className="pt-3 text-center text-xs text-muted-foreground">Waiting for auction...</CardContent></Card>
-                  )}
-                </div>
-
-                {/* RIGHT: Categories + Purses */}
-                <div className="lg:col-span-2 space-y-4">
-                  <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-transparent">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-purple-400" />
-                          <CardTitle className="text-base">Categories (1)</CardTitle>
-                        </div>
-                        {playerPool && <Badge className="text-xs bg-blue-500/20 text-blue-300">{playerPool.length} Total</Badge>}
-                      </div>
-                    </CardHeader>
-                  </Card>
-                  {playerPool && playerPool.length > 0 ? (
-                    <CategoryPlayerGrid players={playerPool} selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} selectedPlayerId={currentPlayer?.id} />
-                  ) : (
-                    <Card><CardContent className="pt-3 text-center text-xs text-muted-foreground">Loading...</CardContent></Card>
-                  )}
-
-                  <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-transparent">
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center gap-2">
-                        <Wallet className="w-4 h-4 text-blue-400" />
-                        <CardTitle className="text-base">Purses ({auctionTeams?.length || 0})</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="text-sm max-h-40 overflow-y-auto">
-                      <div className="space-y-2">{auctionTeams && auctionTeams.map((team: any) => (<div key={team.id} className="flex justify-between p-2 bg-white/5 rounded text-xs"><span className="font-semibold">{team.name}</span><span className="text-green-400">₹{(team.remainingPurse || 0).toLocaleString()}</span></div>))}</div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </div>
-
-              {/* ANALYTICS & COMPETITORS SECTION */}
-              <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-transparent">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                      <BarChart3 className="w-5 h-5 text-blue-400" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-2xl">My Team Analysis & Competitors</CardTitle>
-                      <CardDescription>Detailed team metrics + competitor comparison</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-
-              {/* LIVE AUCTION SECTION */}
-              {currentPlayer && (
-                <Card className="border-red-500/20 bg-gradient-to-br from-red-500/10 to-transparent">
-                  <CardHeader>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center animate-pulse">
-                        <Radio className="w-5 h-5 text-red-400" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Gavel className="w-5 h-5" />
-                          Live Auction Update
-                        </CardTitle>
-                        <CardDescription>Currently on stage</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-2">Current Player</p>
-                          <p className="text-xl font-bold text-cyan-400">{currentPlayer.name}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {currentPlayer.role?.replace('_', ' ').toUpperCase()}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-2">Base Price</p>
-                          <p className="text-xl font-bold text-amber-400">
-                            ₹{currentPlayer.base_price?.toLocaleString()}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">Category: {currentPlayer.category}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-2">Status</p>
-                          <Badge
-                            className={
-                              currentPlayer.auction_status === 'sold'
-                                ? 'bg-green-500/20 text-green-300'
-                                : currentPlayer.auction_status === 'unsold'
-                                  ? 'bg-rose-500/20 text-rose-300'
-                                  : 'bg-yellow-500/20 text-yellow-300 animate-pulse'
-                            }
-                          >
-                            {currentPlayer.auction_status?.toUpperCase() || 'ON AUCTION'}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Recent Sales */}
-                    {salesHistory && salesHistory.length > 0 && (
-                      <div>
-                        <p className="text-sm font-semibold mb-3">Recent Sales (Last 5)</p>
-                        <div className="space-y-2">
-                          {salesHistory.slice(0, 5).map((sale: any, idx: number) => (
-                            <div key={idx} className="bg-white/5 rounded p-3 border border-white/10">
-                              <div className="flex justify-between items-start">
-                                <div>
-                                  <p className="text-sm font-medium text-white">{sale.player_name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {sale.role?.replace('_', ' ')} • {sale.team_name}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="text-sm font-bold text-green-400">₹{sale.sold_price?.toLocaleString()}</p>
-                                  <p className="text-xs text-muted-foreground">Sold</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Squad Composition Analysis */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Role Distribution */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <PieChart className="w-5 h-5 text-purple-400" />
-                      Role Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-3">
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium">Batters</span>
-                          <span className="text-sm font-bold text-blue-400">{myStats.batters}</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2">
-                          <div
-                            className="bg-blue-500 h-2 rounded-full"
-                            style={{
-                              width: `${Math.max(
-                                (myStats.batters / Math.max(myStats.totalPlayers, 1)) * 100,
-                                5
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium">Bowlers</span>
-                          <span className="text-sm font-bold text-emerald-400">{myStats.bowlers}</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2">
-                          <div
-                            className="bg-emerald-500 h-2 rounded-full"
-                            style={{
-                              width: `${Math.max(
-                                (myStats.bowlers / Math.max(myStats.totalPlayers, 1)) * 100,
-                                5
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium">All-Rounders</span>
-                          <span className="text-sm font-bold text-purple-400">{myStats.allRounders}</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2">
-                          <div
-                            className="bg-purple-500 h-2 rounded-full"
-                            style={{
-                              width: `${Math.max(
-                                (myStats.allRounders / Math.max(myStats.totalPlayers, 1)) * 100,
-                                5
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium">Wicket Keepers</span>
-                          <span className="text-sm font-bold text-amber-400">{myStats.wicketKeepers}</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-2">
-                          <div
-                            className="bg-amber-500 h-2 rounded-full"
-                            style={{
-                              width: `${Math.max(
-                                (myStats.wicketKeepers / Math.max(myStats.totalPlayers, 1)) * 100,
-                                5
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Investment Metrics */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Wallet className="w-5 h-5 text-amber-400" />
-                      Investment Metrics
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-3">
-                      <div className="bg-white/5 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Total Investment</p>
-                        <p className="text-2xl font-bold text-amber-400">
-                          ₹{myStats.totalValue.toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="bg-white/5 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Average Per Player</p>
-                        <p className="text-2xl font-bold text-blue-400">
-                          ₹{Math.round(myStats.totalValue / Math.max(myStats.totalPlayers, 1)).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="bg-white/5 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Sold Players Value</p>
-                        <p className="text-2xl font-bold text-green-400">
-                          ₹{(
-                            (myTeam?.players?.reduce(
-                              (sum, p) => sum + (p.auction_status === 'sold' ? p.sold_price || 0 : 0),
-                              0
-                            ) || 0)
-                          ).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="bg-white/5 rounded-lg p-3">
-                        <p className="text-xs text-muted-foreground mb-1">Average Sold Price</p>
-                        <p className="text-2xl font-bold text-cyan-400">
-                          ₹{(
-                            myStats.soldPlayers > 0
-                              ? Math.round(
-                                  (myTeam?.players?.reduce(
-                                    (sum, p) =>
-                                      sum + (p.auction_status === 'sold' ? p.sold_price || 0 : 0),
-                                    0
-                                  ) || 0) / myStats.soldPlayers
-                                )
-                              : 0
-                          ).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Performance Status */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-green-400" />
-                      Auction Progress
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">Sold</span>
-                        <span className="text-xs font-bold">{myStats.soldPlayers}/{myStats.totalPlayers}</span>
-                      </div>
-                      <div className="w-full bg-white/10 rounded-full h-2.5">
-                        <div
-                          className="bg-green-500 h-2.5 rounded-full"
-                          style={{
-                            width: `${Math.min(
-                              (myStats.soldPlayers / Math.max(myStats.totalPlayers, 1)) * 100,
-                              100
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p className="text-lg font-bold text-green-400">
-                      {Math.round(
-                        (myStats.soldPlayers / Math.max(myStats.totalPlayers, 1)) * 100
-                      )}%
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Zap className="w-4 h-4 text-yellow-400" />
-                      Budget Utilization
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-xs text-muted-foreground">Used</span>
-                        <span className="text-xs font-bold">
-                          {Math.round(
-                            (myStats.totalValue / (myTeam?.initial_purse || 10000)) * 100
-                          )}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-white/10 rounded-full h-2.5">
-                        <div
-                          className="bg-yellow-500 h-2.5 rounded-full"
-                          style={{
-                            width: `${Math.min(
-                              (myStats.totalValue / (myTeam?.initial_purse || 10000)) * 100,
-                              100
-                            )}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p className="text-lg font-bold text-yellow-400">
-                      ₹{(myTeam?.initial_purse || 10000).toLocaleString()}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2">
-                      <Target className="w-4 h-4 text-rose-400" />
-                      Remaining Budget
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="text-lg font-bold text-rose-400">
-                      ₹{(
-                        (myTeam?.initial_purse || 10000) - myStats.totalValue
-                      ).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {Math.round(
-                        (((myTeam?.initial_purse || 10000) - myStats.totalValue) /
-                          (myTeam?.initial_purse || 10000)) *
-                          100
-                      )}% of total budget
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Detailed Squad Analysis */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-cyan-400" />
-                    Squad Breakdown by Role
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Role</th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Count</th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Sold</th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Unsold</th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Total Invested
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Avg Price
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[
-                          { role: 'batter', label: 'Batters', color: 'text-blue-400' },
-                          { role: 'bowler', label: 'Bowlers', color: 'text-emerald-400' },
-                          { role: 'all_rounder', label: 'All-Rounders', color: 'text-purple-400' },
-                          { role: 'wicket_keeper', label: 'Wicket Keepers', color: 'text-amber-400' },
-                        ].map((roleGroup) => {
-                          const rolePlayers = myTeam?.players?.filter(
-                            (p) => p.role === roleGroup.role
-                          ) || [];
-                          const soldCount = rolePlayers.filter(
-                            (p) => p.auction_status === 'sold'
-                          ).length;
-                          const unsoldCount = rolePlayers.length - soldCount;
-                          const totalInvested = rolePlayers.reduce(
-                            (sum, p) => sum + (p.sold_price || p.base_price || 0),
-                            0
-                          );
-                          const avgPrice =
-                            rolePlayers.length > 0 ? Math.round(totalInvested / rolePlayers.length) : 0;
-
-                          return (
-                            <tr key={roleGroup.role} className="border-b border-white/5 hover:bg-white/[0.02]">
-                              <td className="py-3 px-4 font-medium">
-                                <span className={roleGroup.color}>{roleGroup.label}</span>
+                        </thead>
+                        <tbody>
+                          {myTeam.players.map((player) => (
+                            <tr key={player.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                              <td className="py-3 px-4 font-medium">{player.name}</td>
+                              <td className="py-3 px-4">
+                                <Badge variant="outline" className="capitalize">
+                                  {player.role?.replace('_', ' ')}
+                                </Badge>
                               </td>
-                              <td className="py-3 px-4 font-semibold">{rolePlayers.length}</td>
-                              <td className="py-3 px-4 text-green-400">{soldCount}</td>
-                              <td className="py-3 px-4 text-rose-400">{unsoldCount}</td>
-                              <td className="py-3 px-4 font-semibold">
-                                ₹{totalInvested.toLocaleString()}
+                              <td className="py-3 px-4">₹{(player.basePrice || player.base_price || 100).toLocaleString()}</td>
+                              <td className="py-3 px-4 font-mono font-bold text-amber-400">
+                                {player.soldPrice || player.sold_price ? `₹${(player.soldPrice || player.sold_price).toLocaleString()}` : '-'}
                               </td>
-                              <td className="py-3 px-4 text-cyan-400">₹{avgPrice.toLocaleString()}</td>
+                              <td className="py-3 px-4">
+                                <Badge className="bg-green-500/20 text-green-300 font-bold">
+                                  SOLD
+                                </Badge>
+                              </td>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-
-              {/* Price Range Analysis */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Price Range Analysis</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {[
-                      {
-                        range: '₹0 - ₹500',
-                        min: 0,
-                        max: 500,
-                        color: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-                      },
-                      {
-                        range: '₹501 - ₹1000',
-                        min: 501,
-                        max: 1000,
-                        color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
-                      },
-                      {
-                        range: '₹1001 - ₹2000',
-                        min: 1001,
-                        max: 2000,
-                        color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
-                      },
-                      {
-                        range: '₹2001+',
-                        min: 2001,
-                        max: Infinity,
-                        color: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-                      },
-                    ].map((priceRange) => {
-                      const playersInRange = myTeam?.players?.filter(
-                        (p) => {
-                          const price = p.sold_price || p.base_price || 0;
-                          return price >= priceRange.min && price <= priceRange.max;
-                        }
-                      ).length || 0;
-
-                      return (
-                        <div key={priceRange.range} className="flex items-center gap-4">
-                          <div className="min-w-24">
-                            <p className="text-sm font-semibold text-muted-foreground">{priceRange.range}</p>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-white/10 rounded-full h-3">
-                                <div
-                                  className={`h-3 rounded-full transition-all ${priceRange.color}`}
-                                  style={{
-                                    width: `${Math.max(
-                                      (playersInRange / Math.max(myStats.totalPlayers, 1)) * 100,
-                                      3
-                                    )}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className={`text-sm font-bold min-w-8 ${priceRange.color}`}>
-                                {playersInRange}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Tournament Auction Summary */}
-              {auctionTeams && auctionTeams.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Radio className="w-5 h-5 text-red-400" />
-                      Auction Tournament Status
-                    </CardTitle>
-                    <CardDescription>Overall auction progress across all teams</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                        <p className="text-xs text-muted-foreground mb-2">Total Teams</p>
-                        <p className="text-3xl font-bold text-blue-400">{auctionTeams.length}</p>
-                      </div>
-                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                        <p className="text-xs text-muted-foreground mb-2">Total Budget</p>
-                        <p className="text-3xl font-bold text-amber-400">
-                          ₹{(
-                            auctionTeams.reduce((sum: number, t: any) => sum + (t.initial_purse || 0), 0)
-                          ).toLocaleString()}
-                        </p>
-                      </div>
-                      <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                        <p className="text-xs text-muted-foreground mb-2">Teams in Auction</p>
-                        <p className="text-3xl font-bold text-emerald-400">
-                          {auctionTeams.filter((t: any) => (t.remaining_purse || 0) > 0).length}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </TabsContent>
 
-            {/* SPOTLIGHT (LIVE AUCTION) TAB */}
-            <TabsContent value="spotlight" className="space-y-6">
-              <Card className="border-red-500/20 bg-gradient-to-br from-red-500/10 to-transparent">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center animate-pulse">
-                        <Radio className="w-5 h-5 text-red-400" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-2xl">Live Auction - Spotlight</CardTitle>
-                        <CardDescription>Currently on stage - Synced in real-time</CardDescription>
-                      </div>
-                    </div>
-                    <Badge className="bg-green-500/20 text-green-300 animate-pulse">
-                      <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                      Live
-                    </Badge>
-                  </div>
-                </CardHeader>
-              </Card>
-
-              {currentPlayer ? (
-                <>
-                  <Card className="border-white/10">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg">Current Auction</CardTitle>
-                      <CardDescription className="text-sm mt-1">
-                        Player: <span className="text-cyan-400 font-semibold">{currentPlayer.name}</span> •
-                        Role: <span className="text-blue-400 font-semibold">{currentPlayer.role?.replace('_', ' ')}</span> •
-                        Base: <span className="text-amber-400 font-semibold">₹{currentPlayer.base_price?.toLocaleString()}</span>
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
-                  <SinglePlayerAuctionStage
-                    player={currentPlayer}
-                    teams={auctionTeams}
-                    selectedPlayerId={currentPlayer?.id}
-                  />
-                </>
-              ) : (
-                <Card>
-                  <CardContent className="pt-8 text-center">
-                    <p className="text-muted-foreground">No player currently on auction stage</p>
-                    <p className="text-xs text-muted-foreground mt-2">Waiting for live auction to begin...</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            {/* PLAYERS (CATEGORIES) TAB */}
-            <TabsContent value="players" className="space-y-6">
-              <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-transparent">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-purple-400" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-2xl">Player Pool by Category</CardTitle>
-                        <CardDescription>Browse and filter players in the auction pool</CardDescription>
-                      </div>
-                    </div>
-                    {playerPool && playerPool.length > 0 && (
-                      <Badge className="bg-blue-500/20 text-blue-300">
-                        {playerPool.length} Players
-                      </Badge>
-                    )}
-                  </div>
-                </CardHeader>
-              </Card>
-
-              {playerPool && playerPool.length > 0 ? (
-                <>
-                  <Card className="border-white/10 bg-white/5">
-                    <CardContent className="pt-4">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Total Players</p>
-                          <p className="text-2xl font-bold text-blue-400">{playerPool.length}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Sold</p>
-                          <p className="text-2xl font-bold text-green-400">
-                            {playerPool.filter((p: any) => p.auction_status === 'sold').length}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Unsold</p>
-                          <p className="text-2xl font-bold text-rose-400">
-                            {playerPool.filter((p: any) => p.auction_status === 'unsold').length}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Pending</p>
-                          <p className="text-2xl font-bold text-amber-400">
-                            {playerPool.filter((p: any) => !p.auction_status || p.auction_status === 'pending').length}
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <CategoryPlayerGrid
-                    players={playerPool}
-                    selectedCategory={selectedCategory}
-                    onCategoryChange={setSelectedCategory}
-                    selectedPlayerId={currentPlayer?.id}
-                  />
-                </>
-              ) : (
-                <Card>
-                  <CardContent className="pt-8 text-center">
-                    <p className="text-muted-foreground">No players in pool</p>
-                    <p className="text-xs text-muted-foreground mt-2">Waiting for auction to load...</p>
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            {/* COMPETITION TAB */}
+            {/* 4. COMPETITORS ANALYSIS TAB */}
             <TabsContent value="competition" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Other Teams Analysis</CardTitle>
-                  <CardDescription>Monitor competitor team composition and spending</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-blue-400" />
+                    Franchise Spending & Competitor Intelligence
+                  </CardTitle>
+                  <CardDescription>Real-time squad count and remaining purse across all rival teams</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-white/10">
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Team Name
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Owner
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Squad Size
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Total Spent
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Remaining
-                          </th>
-                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">
-                            Spending %
-                          </th>
+                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Franchise</th>
+                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Owner</th>
+                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Squad</th>
+                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Total Spent</th>
+                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Remaining Purse</th>
+                          <th className="text-left py-3 px-4 font-semibold text-muted-foreground">Spending %</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1104,19 +544,16 @@ export default function OwnerDashboard() {
                             (team.totalSpent / team.initialPurse) * 100
                           );
                           return (
-                            <tr
-                              key={team.teamId}
-                              className="border-b border-white/5 hover:bg-white/[0.02]"
-                            >
+                            <tr key={team.teamId} className="border-b border-white/5 hover:bg-white/[0.02]">
                               <td className="py-3 px-4 font-medium">{team.teamName}</td>
                               <td className="py-3 px-4 text-muted-foreground">{team.ownerName}</td>
                               <td className="py-3 px-4">
-                                {team.soldPlayers}/{team.totalPlayers}
+                                {team.soldPlayers}/{team.totalPlayers || 10}
                               </td>
                               <td className="py-3 px-4 font-semibold">
                                 ₹{team.totalSpent.toLocaleString()}
                               </td>
-                              <td className="py-3 px-4 text-emerald-400">
+                              <td className="py-3 px-4 text-emerald-400 font-mono font-bold">
                                 ₹{team.remainingPurse.toLocaleString()}
                               </td>
                               <td className="py-3 px-4">

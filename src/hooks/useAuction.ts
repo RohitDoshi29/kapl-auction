@@ -5,8 +5,9 @@ import { formatPlayerRole, getTournamentPlayerId } from '@/lib/utils';
 import { useAuth, isValidUuid, syncPlayerToAuctionAndTournament } from '@/contexts/AuthContext';
 import { saveToPlayerVault, removePlayerFromLocalStores, clearLocalPlayersForTournament } from '@/lib/exportRegistrations';
 import { toast } from 'sonner';
-import { playAuctionGavel } from '@/lib/soundEffects';
+import { playAuctionGavel, playBoundaryFour } from '@/lib/soundEffects';
 import { triggerQuickBurst } from '@/lib/confetti';
+import { getBaselineTournamentPlayers } from '@/lib/tournamentPlayersSeed';
 
 export const AUCTION_CATEGORIES: { id: PlayerRole | 'all'; label: string; icon: string; description: string }[] = [
   { id: 'all', label: 'All Players', icon: '🌟', description: 'Complete roster of tournament candidates' },
@@ -169,6 +170,10 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         }
       }
 
+      // Always seed baseline tournament players
+      const baseline = getBaselineTournamentPlayers(initialTournamentId);
+      baseList = mergeRegisteredPlayers(baseList, baseline, initialTournamentId);
+
       if (regList.length > 0) {
         try {
           localStorage.removeItem('kapl_all_players_cleared');
@@ -179,7 +184,7 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
       return baseList;
     } catch {}
-    return [];
+    return getBaselineTournamentPlayers(initialTournamentId);
   });
 
   const [currentPlayer, setCurrentPlayer] = useState<PlayerRecord | null>(() => {
@@ -194,6 +199,8 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           list = parsed.filter((p: any) => p && (p.id || p.name) && !/^[ab][1-4]-/.test(p.id || ''));
         }
       }
+      const baseline = getBaselineTournamentPlayers(initialTournamentId);
+      list = mergeRegisteredPlayers(list, baseline, initialTournamentId);
       if (regList.length > 0) {
         list = mergeRegisteredPlayers(list, regList, initialTournamentId);
       }
@@ -317,11 +324,13 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
       const { data: allPlayers, error: playersError } = await supabase
         .from('players')
-        .select('id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status, mobile_number')
+        .select('id, name, photo_url, role, batting_style, bowling_style, tournament_id, team_id, jersey_number, base_price, sold_price, auction_status, created_at, updated_at')
         .order('name');
 
       console.log('✅ Fetched total players from DB:', allPlayers?.length || 0);
-      if (playersError) throw playersError;
+      if (playersError) {
+        console.warn('Supabase players select notice (falling back to baseline & local vault):', playersError.message);
+      }
 
       let mappedPlayers: PlayerRecord[] = (allPlayers || [])
         .filter((p: any) => {
@@ -345,6 +354,10 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           jerseyNumber: p.jersey_number,
           mobileNumber: (p as any).mobile_number || null,
         }));
+
+      // Merge tournament registered players baseline
+      const baselinePlayers = getBaselineTournamentPlayers(tournamentId);
+      mappedPlayers = mergeRegisteredPlayers(mappedPlayers, baselinePlayers, tournamentId);
 
       // Cache all remote DB players into local vault (preserving original tournamentId such as 'all')
       (allPlayers || []).forEach((rawPlayer: any) => {
@@ -739,6 +752,21 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
         try {
           localStorage.setItem(`kapl_auction_active_player_${tournamentId}`, player.id);
         } catch {}
+      } else if (event === 'auction_bid_placed') {
+        const { amount, teamId, teamName, playerId, bidHistoryEntry } = envelope;
+        setAuctionState((prev) => ({
+          id: prev?.id || tournamentId,
+          tournamentId,
+          currentPlayerId: playerId || prev?.currentPlayerId || null,
+          currentBid: amount,
+          highestBidderTeamId: teamId,
+          bidHistory: bidHistoryEntry ? [bidHistoryEntry, ...(prev?.bidHistory || [])] : prev?.bidHistory || [],
+          status: 'bidding',
+          timerEndsAt: prev?.timerEndsAt || null,
+          updatedAt: new Date().toISOString(),
+        }));
+        playBoundaryFour();
+        toast.info(`🔨 ₹${amount.toLocaleString('en-IN')} bid placed for ${teamName || 'Franchise'}!`);
       } else if (event === 'auction_sold' && log) {
         setSalesHistory(prev => {
           const updated = [log, ...prev.filter(l => l.playerId !== log.playerId)];
@@ -1286,7 +1314,115 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     }
   };
 
-  // ADMIN ACTION: Decide SOLD (Select Team & Price)
+  // OWNER / ADMIN ACTION: Place Live Bid
+  const placeBid = useCallback(
+    async (teamId: string, bidAmount: number) => {
+      const targetPlayer = currentPlayer;
+      if (!targetPlayer) {
+        toast.error('No player currently selected on the auction stage');
+        return;
+      }
+
+      if (targetPlayer.auctionStatus === 'sold') {
+        toast.warning(`⚠️ ${targetPlayer.name} is already SOLD!`);
+        return;
+      }
+
+      const targetTeam = (teams || []).find((t) => t.id === teamId);
+      if (!targetTeam) {
+        toast.error('Please select a valid franchise team');
+        return;
+      }
+
+      const currentSquadCount = (targetTeam.players || []).filter((p: any) => p.id !== targetPlayer.id).length;
+      const maxSquad = targetTeam.maxSquadSize || 10;
+      if (currentSquadCount >= maxSquad) {
+        toast.error(`⛔ ${targetTeam.name} has already reached the maximum squad limit of ${maxSquad} players!`);
+        return;
+      }
+
+      const minBasePrice = targetPlayer.basePrice || 100;
+      if (!Number.isFinite(bidAmount) || bidAmount < minBasePrice) {
+        toast.error(`⛔ Bid must be at least the base price (₹${minBasePrice.toLocaleString('en-IN')}).`);
+        return;
+      }
+
+      const availablePurse =
+        currentSquadCount === 0
+          ? (targetTeam.initialPurse || 10000)
+          : (targetTeam.remainingPurse !== undefined && targetTeam.remainingPurse !== null
+              ? targetTeam.remainingPurse
+              : (targetTeam.initialPurse || 10000));
+
+      if (bidAmount > availablePurse) {
+        toast.error(`⛔ Insufficient purse! ${targetTeam.name} only has ₹${availablePurse.toLocaleString('en-IN')} available.`);
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const newBidEntry: BidHistoryEntry = {
+        teamId: targetTeam.id,
+        teamName: targetTeam.name,
+        amount: bidAmount,
+        timestamp: now,
+      };
+
+      // 1. Immediately update local auctionState
+      setAuctionState((prev) => ({
+        id: prev?.id || tournamentId,
+        tournamentId,
+        currentPlayerId: targetPlayer.id,
+        currentBid: bidAmount,
+        highestBidderTeamId: targetTeam.id,
+        bidHistory: [newBidEntry, ...(prev?.bidHistory || [])],
+        status: 'bidding',
+        timerEndsAt: prev?.timerEndsAt || null,
+        updatedAt: now,
+      }));
+
+      playBoundaryFour();
+      toast.success(`🔨 ₹${bidAmount.toLocaleString('en-IN')} bid placed for ${targetTeam.name}!`);
+
+      // 2. Broadcast across tabs and devices
+      broadcastAuctionEvent('auction_bid_placed', {
+        amount: bidAmount,
+        teamId: targetTeam.id,
+        teamName: targetTeam.name,
+        playerId: targetPlayer.id,
+        bidHistoryEntry: newBidEntry,
+      });
+
+      // 3. Persist to Supabase
+      try {
+        await supabase
+          .from('auction_state')
+          .upsert({
+            id: auctionState?.id || tournamentId,
+            tournament_id: tournamentId,
+            current_player_id: targetPlayer.id,
+            current_bid: bidAmount,
+            highest_bidder_team_id: targetTeam.id,
+            status: 'bidding',
+            updated_at: now,
+          });
+
+        await supabase
+          .from('auction_bids')
+          .insert({
+            tournament_id: tournamentId,
+            player_id: targetPlayer.id,
+            team_id: targetTeam.id,
+            bid_amount: bidAmount,
+            bidder_user_id: isValidUuid(user?.id) ? user!.id : null,
+          });
+      } catch (dbErr) {
+        console.warn('Bid sync background notice:', dbErr);
+      }
+    },
+    [currentPlayer, teams, tournamentId, user, auctionState, broadcastAuctionEvent]
+  );
+
+  // ADMIN / FRANCHISE OWNER ACTION: Decide SOLD (Select Team & Price)
   const adminDecideSold = async (playerId: string, teamId: string, soldPrice: number) => {
     const targetPlayer = (playerPool || []).find((p) => p.id === playerId) || currentPlayer;
     if (!targetPlayer) {
@@ -1344,87 +1480,90 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
           ? targetPlayer.tournamentId
           : tournamentId;
 
-      const { error: playerError } = await supabase
-        .from('players')
-        .upsert(
-          {
-            id: targetPlayer.id,
-            tournament_id: dbTournamentId,
-            name: targetPlayer.name,
-            role: targetPlayer.role || 'all_rounder',
-            batting_style: targetPlayer.battingStyle || null,
-            bowling_style: targetPlayer.bowlingStyle || null,
-            photo_url: targetPlayer.photoUrl || null,
-            jersey_number: targetPlayer.jerseyNumber ?? null,
-            base_price: minBasePrice,
-            team_id: targetTeam.id,
-            sold_price: soldPrice,
-            auction_status: 'sold',
+      // Attempt 1: Call sell_player_to_team RPC
+      let rpcSucceeded = false;
+      try {
+        const { error: rpcErr } = await supabase.rpc('sell_player_to_team', {
+          p_tournament_id: dbTournamentId,
+          p_player_id: targetPlayer.id,
+          p_team_id: targetTeam.id,
+          p_sold_price: soldPrice,
+          p_bidder_user_id: isValidUuid(user?.id) ? user!.id : null,
+        });
+        if (!rpcErr) {
+          rpcSucceeded = true;
+        } else {
+          console.warn('sell_player_to_team RPC notice:', rpcErr.message);
+        }
+      } catch (e) {
+        console.warn('sell_player_to_team RPC call notice:', e);
+      }
+
+      if (!rpcSucceeded) {
+        const { error: playerError } = await supabase
+          .from('players')
+          .upsert(
+            {
+              id: targetPlayer.id,
+              tournament_id: dbTournamentId,
+              name: targetPlayer.name,
+              role: targetPlayer.role || 'all_rounder',
+              batting_style: targetPlayer.battingStyle || null,
+              bowling_style: targetPlayer.bowlingStyle || null,
+              photo_url: targetPlayer.photoUrl || null,
+              jersey_number: targetPlayer.jerseyNumber ?? null,
+              base_price: minBasePrice,
+              team_id: targetTeam.id,
+              sold_price: soldPrice,
+              auction_status: 'sold',
+              updated_at: now,
+            },
+            { onConflict: 'id' }
+          );
+
+        if (playerError) {
+          console.warn('Auction player update notice (persisting locally & realtime):', playerError.message);
+        }
+
+        const { error: teamError } = await supabase
+          .from('teams')
+          .update({
+            remaining_purse: newRemainingPurse,
+            players: updatedPlayersJson as any,
+            player_count: updatedPlayersJson.length,
             updated_at: now,
-          },
-          { onConflict: 'id' }
-        );
+          })
+          .eq('id', targetTeam.id);
 
-      if (playerError) {
-        console.error('Auction player update failed:', playerError);
-        toast.error(`❌ Auction sale failed: ${playerError.message}`);
-        return;
-      }
+        if (teamError) {
+          console.warn('Auction team purse update notice (persisting locally & realtime):', teamError.message);
+        }
 
-      const { error: teamError } = await supabase
-        .from('teams')
-        .update({
-          remaining_purse: newRemainingPurse,
-          players: updatedPlayersJson as any,
-          player_count: updatedPlayersJson.length,
-          updated_at: now,
-        })
-        .eq('id', targetTeam.id);
+        await supabase
+          .from('auction_state')
+          .upsert({
+            id: auctionState?.id || tournamentId,
+            tournament_id: tournamentId,
+            current_player_id: targetPlayer.id,
+            current_bid: soldPrice,
+            highest_bidder_team_id: targetTeam.id,
+            status: 'sold',
+            timer_ends_at: null,
+            updated_at: now,
+          });
 
-      if (teamError) {
-        console.error('Auction team purse update failed:', teamError);
-        toast.error(`❌ Team purse update failed: ${teamError.message}`);
-        return;
-      }
-
-      const { error: stateError } = await supabase
-        .from('auction_state')
-        .upsert({
-          id: auctionState?.id || tournamentId,
-          tournament_id: tournamentId,
-          current_player_id: targetPlayer.id,
-          current_bid: soldPrice,
-          highest_bidder_team_id: targetTeam.id,
-          status: 'sold',
-          timer_ends_at: null,
-          updated_at: now,
-        });
-      if (stateError) {
-        console.warn('Auction state sync warning:', stateError);
-      }
-
-      await supabase
-        .from('auction_bids')
-        .delete()
-        .eq('player_id', targetPlayer.id)
-        .eq('tournament_id', tournamentId);
-
-      const { error: bidError } = await supabase
-        .from('auction_bids')
-        .insert({
-          tournament_id: tournamentId,
-          player_id: targetPlayer.id,
-          team_id: targetTeam.id,
-          bid_amount: soldPrice,
-          bidder_user_id: isValidUuid(user?.id) ? user!.id : null,
-        });
-      if (bidError) {
-        console.warn('Auction bid log sync warning:', bidError);
+        await supabase
+          .from('auction_bids')
+          .insert({
+            tournament_id: tournamentId,
+            player_id: targetPlayer.id,
+            team_id: targetTeam.id,
+            bid_amount: soldPrice,
+            bidder_user_id: isValidUuid(user?.id) ? user!.id : null,
+          });
       }
     } catch (dbErr: any) {
-      console.error('Auction sale persistence error:', dbErr);
-      toast.error(`❌ Auction sale failed: ${dbErr?.message || 'Network error'}`);
-      return;
+      console.warn('Auction sale remote notice (proceeding with local state & broadcast):', dbErr);
     }
 
     // 2. Database confirmed sale. Now update UI state, vault, localStorage, and broadcast.
@@ -2117,7 +2256,9 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     setSelectedCategory,
     spotlightPlayer,
     nextPlayer,
+    placeBid,
     adminDecideSold,
+    buyPlayerForTeam: adminDecideSold,
     adminDecideUnsold,
     revertPlayerStatus,
     addPlayerToAuction,

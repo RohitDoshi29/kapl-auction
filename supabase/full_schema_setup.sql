@@ -495,8 +495,19 @@ DECLARE
   v_new_purse NUMERIC;
   v_updated_players JSONB;
 BEGIN
-  IF NOT public.is_admin() THEN
-    RAISE EXCEPTION 'Access Denied: Only administrators can finalize player sales.';
+  -- Allow administrators OR franchise owners for their own team
+  IF NOT (
+    public.is_admin() OR
+    EXISTS (
+      SELECT 1 FROM public.teams
+      WHERE id = p_team_id
+        AND (
+          owner_user_id = auth.uid()
+          OR lower(owner_email) = lower(auth.jwt()->>'email')
+        )
+    )
+  ) THEN
+    RAISE EXCEPTION 'Access Denied: Only administrators or franchise owners of this team can finalize player sales.';
   END IF;
 
   SELECT * INTO v_team FROM public.teams WHERE id = p_team_id FOR UPDATE;
