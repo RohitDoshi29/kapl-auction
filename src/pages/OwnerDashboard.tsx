@@ -8,9 +8,11 @@ import { Header } from '@/components/cricket/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, PieChart, Radio, Gavel } from 'lucide-react';
+import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, PieChart, Radio, Gavel, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Team, PlayerRecord } from '@/lib/cricketTypes';
+import { SinglePlayerAuctionStage } from '@/components/auction/SinglePlayerAuctionStage';
+import { CategoryPlayerGrid } from '@/components/auction/CategoryPlayerGrid';
 
 interface TeamData extends Team {
   players: PlayerRecord[];
@@ -31,7 +33,7 @@ export default function OwnerDashboard() {
   const { isOwner, user, profile } = useAuth();
   const { activeTournamentId } = useTournament();
   const navigate = useNavigate();
-  const { currentPlayer, teams: auctionTeams, salesHistory } = useAuction(activeTournamentId || 'kapl-3-mens');
+  const { currentPlayer, teams: auctionTeams, salesHistory, playerPool, selectedCategory, setSelectedCategory } = useAuction(activeTournamentId || 'kapl-3-mens');
 
   const [myTeam, setMyTeam] = useState<TeamData | null>(null);
   const [otherTeams, setOtherTeams] = useState<TeamStats[]>([]);
@@ -180,10 +182,12 @@ export default function OwnerDashboard() {
           </Card>
         ) : (
           <Tabs defaultValue="my-team" className="w-full space-y-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="my-team">My Team</TabsTrigger>
-              <TabsTrigger value="team-analysis">Team Analysis</TabsTrigger>
-              <TabsTrigger value="competition">Other Teams</TabsTrigger>
+              <TabsTrigger value="team-analysis">Analytics</TabsTrigger>
+              <TabsTrigger value="spotlight">Spotlight</TabsTrigger>
+              <TabsTrigger value="players">Players</TabsTrigger>
+              <TabsTrigger value="competition">Competitors</TabsTrigger>
             </TabsList>
 
             {/* MY TEAM TAB */}
@@ -881,6 +885,69 @@ export default function OwnerDashboard() {
                         </p>
                       </div>
                     </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* SPOTLIGHT (LIVE AUCTION) TAB */}
+            <TabsContent value="spotlight" className="space-y-6">
+              <Card className="border-red-500/20 bg-gradient-to-br from-red-500/10 to-transparent">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center animate-pulse">
+                      <Radio className="w-5 h-5 text-red-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl">Live Auction - Spotlight</CardTitle>
+                      <CardDescription>Currently on stage - Monitor the auction</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+
+              {currentPlayer ? (
+                <SinglePlayerAuctionStage
+                  player={currentPlayer}
+                  teams={auctionTeams}
+                  selectedPlayerId={currentPlayer?.id}
+                />
+              ) : (
+                <Card>
+                  <CardContent className="pt-8 text-center">
+                    <p className="text-muted-foreground">No player currently on auction stage</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* PLAYERS (CATEGORIES) TAB */}
+            <TabsContent value="players" className="space-y-6">
+              <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-transparent">
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-2xl">Player Pool by Category</CardTitle>
+                      <CardDescription>Browse and filter players in the auction pool</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+
+              {playerPool && playerPool.length > 0 ? (
+                <CategoryPlayerGrid
+                  players={playerPool}
+                  selectedCategory={selectedCategory}
+                  onCategoryChange={setSelectedCategory}
+                  selectedPlayerId={currentPlayer?.id}
+                />
+              ) : (
+                <Card>
+                  <CardContent className="pt-8 text-center">
+                    <p className="text-muted-foreground">No players in pool</p>
                   </CardContent>
                 </Card>
               )}
