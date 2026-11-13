@@ -894,28 +894,47 @@ export default function OwnerDashboard() {
             <TabsContent value="spotlight" className="space-y-6">
               <Card className="border-red-500/20 bg-gradient-to-br from-red-500/10 to-transparent">
                 <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center animate-pulse">
-                      <Radio className="w-5 h-5 text-red-400" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center animate-pulse">
+                        <Radio className="w-5 h-5 text-red-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-2xl">Live Auction - Spotlight</CardTitle>
+                        <CardDescription>Currently on stage - Synced in real-time</CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-2xl">Live Auction - Spotlight</CardTitle>
-                      <CardDescription>Currently on stage - Monitor the auction</CardDescription>
-                    </div>
+                    <Badge className="bg-green-500/20 text-green-300 animate-pulse">
+                      <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+                      Live
+                    </Badge>
                   </div>
                 </CardHeader>
               </Card>
 
               {currentPlayer ? (
-                <SinglePlayerAuctionStage
-                  player={currentPlayer}
-                  teams={auctionTeams}
-                  selectedPlayerId={currentPlayer?.id}
-                />
+                <>
+                  <Card className="border-white/10">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">Current Auction</CardTitle>
+                      <CardDescription className="text-sm mt-1">
+                        Player: <span className="text-cyan-400 font-semibold">{currentPlayer.name}</span> •
+                        Role: <span className="text-blue-400 font-semibold">{currentPlayer.role?.replace('_', ' ')}</span> •
+                        Base: <span className="text-amber-400 font-semibold">₹{currentPlayer.base_price?.toLocaleString()}</span>
+                      </CardDescription>
+                    </CardHeader>
+                  </Card>
+                  <SinglePlayerAuctionStage
+                    player={currentPlayer}
+                    teams={auctionTeams}
+                    selectedPlayerId={currentPlayer?.id}
+                  />
+                </>
               ) : (
                 <Card>
                   <CardContent className="pt-8 text-center">
                     <p className="text-muted-foreground">No player currently on auction stage</p>
+                    <p className="text-xs text-muted-foreground mt-2">Waiting for live auction to begin...</p>
                   </CardContent>
                 </Card>
               )}
@@ -925,29 +944,67 @@ export default function OwnerDashboard() {
             <TabsContent value="players" className="space-y-6">
               <Card className="border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-transparent">
                 <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                      <Sparkles className="w-5 h-5 text-purple-400" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                        <Sparkles className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-2xl">Player Pool by Category</CardTitle>
+                        <CardDescription>Browse and filter players in the auction pool</CardDescription>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-2xl">Player Pool by Category</CardTitle>
-                      <CardDescription>Browse and filter players in the auction pool</CardDescription>
-                    </div>
+                    {playerPool && playerPool.length > 0 && (
+                      <Badge className="bg-blue-500/20 text-blue-300">
+                        {playerPool.length} Players
+                      </Badge>
+                    )}
                   </div>
                 </CardHeader>
               </Card>
 
               {playerPool && playerPool.length > 0 ? (
-                <CategoryPlayerGrid
-                  players={playerPool}
-                  selectedCategory={selectedCategory}
-                  onCategoryChange={setSelectedCategory}
-                  selectedPlayerId={currentPlayer?.id}
-                />
+                <>
+                  <Card className="border-white/10 bg-white/5">
+                    <CardContent className="pt-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Total Players</p>
+                          <p className="text-2xl font-bold text-blue-400">{playerPool.length}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Sold</p>
+                          <p className="text-2xl font-bold text-green-400">
+                            {playerPool.filter((p: any) => p.auction_status === 'sold').length}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Unsold</p>
+                          <p className="text-2xl font-bold text-rose-400">
+                            {playerPool.filter((p: any) => p.auction_status === 'unsold').length}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Pending</p>
+                          <p className="text-2xl font-bold text-amber-400">
+                            {playerPool.filter((p: any) => !p.auction_status || p.auction_status === 'pending').length}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <CategoryPlayerGrid
+                    players={playerPool}
+                    selectedCategory={selectedCategory}
+                    onCategoryChange={setSelectedCategory}
+                    selectedPlayerId={currentPlayer?.id}
+                  />
+                </>
               ) : (
                 <Card>
                   <CardContent className="pt-8 text-center">
                     <p className="text-muted-foreground">No players in pool</p>
+                    <p className="text-xs text-muted-foreground mt-2">Waiting for auction to load...</p>
                   </CardContent>
                 </Card>
               )}
