@@ -21,13 +21,19 @@ repairAndSyncLocalPlayerState();
     // Initialize IndexedDB for offline support
     await initIndexedDB();
 
-    // Register service worker for caching and offline support
-    if ('serviceWorker' in navigator && import.meta.env.PROD) {
+    // Clean up any stale service workers and caches to prevent chunk mismatch
+    if ('serviceWorker' in navigator) {
       try {
-        const registration = await navigator.serviceWorker.register('/service-worker.js');
-        console.log('[SW] Service Worker registered:', registration);
-      } catch (error) {
-        console.error('[SW] Failed to register Service Worker:', error);
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      } catch (swErr) {
+        console.warn('[SW Cleanup] Stale cache cleanup ignored:', swErr);
       }
     }
   } catch (error) {
