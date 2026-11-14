@@ -33,6 +33,7 @@ import {
   ShieldAlert,
   Trophy,
   UserPlus,
+  Radio,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuctionSaleLog } from '@/hooks/useAuction';

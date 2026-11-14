@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Header } from '@/components/cricket/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, PieChart, Radio, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
