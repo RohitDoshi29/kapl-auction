@@ -50,7 +50,6 @@ interface SinglePlayerAuctionStageProps {
   onNext?: () => void;
   onPrev?: () => void;
   onSpotlightPlayer?: (player: PlayerRecord) => void;
-  onPlaceBid?: (teamId: string, amount: number) => Promise<void> | void;
   currentBid?: number;
   highestBidderTeamId?: string | null;
   onDecideSold?: (playerId: string, teamId: string, amount: number) => void;
@@ -72,7 +71,6 @@ export function SinglePlayerAuctionStage({
   onNext = () => {},
   onPrev = () => {},
   onSpotlightPlayer,
-  onPlaceBid,
   currentBid,
   highestBidderTeamId,
   onDecideSold = () => {},
@@ -125,16 +123,6 @@ export function SinglePlayerAuctionStage({
       setSelectedTeamId(teams[0].id);
     }
   }, [player, teams, selectedTeamId]);
-
-  // Franchise Owner live bidding state & auto-sync
-  const [ownerBidAmount, setOwnerBidAmount] = useState<number>(() => {
-    return Math.max(player?.basePrice || 100, currentBid || 100);
-  });
-
-  useEffect(() => {
-    const minBid = Math.max(player?.basePrice || 100, (currentBid || 0) > 0 ? (currentBid || 0) + 50 : player?.basePrice || 100);
-    setOwnerBidAmount(minBid);
-  }, [player?.id, player?.basePrice, currentBid]);
 
   // Sync admin decision team and sold price when a live bid is placed
   useEffect(() => {
@@ -253,41 +241,15 @@ export function SinglePlayerAuctionStage({
     onDecideSold(player.id, selectedTeamId, soldAmount);
   };
 
-  const handleOwnerPlaceBid = async () => {
-    if (!player) return;
-    const teamToBid = (isViewerTheOwner ? userOwnedTeam : null) || inspectedTeam;
-    if (!teamToBid) {
-      toast.error('Please select a franchise team to place bid');
-      return;
-    }
-    if (onPlaceBid) {
-      await onPlaceBid(teamToBid.id, ownerBidAmount);
-    } else {
-      toast.error('Bidding service unavailable');
-    }
-  };
-
-  const handleOwnerBuyPlayer = async () => {
-    if (!player) return;
-    const teamToBuy = (isViewerTheOwner ? userOwnedTeam : null) || inspectedTeam;
-    if (!teamToBuy) {
-      toast.error('Please select a franchise team to buy player');
-      return;
-    }
-    if (onDecideSold) {
-      onDecideSold(player.id, teamToBuy.id, ownerBidAmount);
-    }
-  };
-
-  // Automatically spotlight first pending player if no player is spotlighted
+  // Automatically spotlight first pending player if no player is spotlighted (Admin only)
   useEffect(() => {
-    if (!player && playerPool.length > 0 && onSpotlightPlayer) {
+    if (isAdmin && !player && playerPool.length > 0 && onSpotlightPlayer) {
       const firstPending = playerPool.find((p) => p.auctionStatus === 'pending') || playerPool[0];
       if (firstPending) {
         onSpotlightPlayer(firstPending);
       }
     }
-  }, [player, playerPool, onSpotlightPlayer]);
+  }, [isAdmin, player, playerPool, onSpotlightPlayer]);
 
   // Check if auction pool has players and all are sold
   const isAllSold = useMemo(() => {
@@ -391,18 +353,29 @@ export function SinglePlayerAuctionStage({
 
       {/* 1. TOP STAGE BAR */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between bg-card/85 backdrop-blur-md border border-white/10 rounded-2xl p-2.5 px-3 sm:px-4 shadow-sm gap-2">
-        <div className="flex items-center justify-between sm:justify-start gap-1">
-          <Button variant="ghost" size="sm" onClick={onPrev} className="gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground min-h-[44px] touch-manipulation">
-            <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">Previous</span><span className="sm:hidden">Prev</span>
-          </Button>
+        <div className="flex items-center justify-between sm:justify-start gap-2">
+          {isAdmin ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={onPrev} className="gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground min-h-[44px] touch-manipulation">
+                <ChevronLeft className="w-4 h-4" /> <span className="hidden sm:inline">Previous</span><span className="sm:hidden">Prev</span>
+              </Button>
 
-          <span className="text-xs font-black text-muted-foreground uppercase tracking-wider sm:hidden">
-            Podium
-          </span>
+              <span className="text-xs font-black text-muted-foreground uppercase tracking-wider sm:hidden">
+                Podium
+              </span>
 
-          <Button variant="ghost" size="sm" onClick={onNext} className="gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground sm:hidden min-h-[44px] touch-manipulation">
-            Next <ChevronRight className="w-4 h-4" />
-          </Button>
+              <Button variant="ghost" size="sm" onClick={onNext} className="gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground sm:hidden min-h-[44px] touch-manipulation">
+                Next <ChevronRight className="w-4 h-4" />
+              </Button>
+            </>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-black tracking-wide">
+                <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-400" /> LIVE STAGE
+              </span>
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">Official Broadcast</span>
+            </div>
+          )}
         </div>
 
         <div className="hidden sm:flex items-center gap-2">
@@ -426,7 +399,7 @@ export function SinglePlayerAuctionStage({
           </div>
         )}
 
-        <div className="hidden sm:flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -437,9 +410,11 @@ export function SinglePlayerAuctionStage({
             Big Screen TV
           </Button>
 
-          <Button variant="ghost" size="sm" onClick={onNext} className="gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">
-            Next Candidate <ChevronRight className="w-4 h-4" />
-          </Button>
+          {isAdmin && (
+            <Button variant="ghost" size="sm" onClick={onNext} className="hidden sm:inline-flex gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground">
+              Next Candidate <ChevronRight className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -470,8 +445,8 @@ export function SinglePlayerAuctionStage({
         </div>
       )}
 
-      {/* AUTO ADVANCE COUNTDOWN BANNER */}
-      {autoAdvanceCountdown !== null && (
+      {/* AUTO ADVANCE COUNTDOWN BANNER (Admin Only) */}
+      {isAdmin && autoAdvanceCountdown !== null && (
         <div className="flex items-center justify-between p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-black animate-pulse shadow-md">
           <span className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-amber-400" />
@@ -872,106 +847,66 @@ export function SinglePlayerAuctionStage({
                   </div>
                 </div>
 
-                {/* 1.5 LIVE FRANCHISE BIDDING & BUYING CONSOLE */}
-                {player && !isSold && !isUnsold && (
-                  <div className="p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/30 space-y-3 shadow-inner">
+                {/* 1.5 LIVE AUCTION STAGE MONITOR (SPECTATORS & NON-ADMIN VIEWERS) */}
+                {!isAdmin && player && (
+                  <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <Gavel className="w-4 h-4 text-amber-400" />
-                        <span className="font-black text-sm text-amber-300 uppercase tracking-wider">
-                          Live Franchise Bidding • {inspectedTeam.name}
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                        </span>
+                        <span className="font-black text-xs sm:text-sm text-foreground uppercase tracking-wider">
+                          Live Stage Monitor
                         </span>
                       </div>
-                      {highestBidderTeamId ? (
-                        <Badge className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold gap-1 self-start sm:self-auto">
-                          <Crown className="w-3 h-3 text-amber-400" />
-                          Leading: {teams.find(t => t.id === highestBidderTeamId)?.name || 'Team'} (₹{(currentBid || player.basePrice || 100).toLocaleString()})
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-amber-500/30 text-amber-400 text-xs font-mono self-start sm:self-auto">
-                          Base Price: ₹{(player.basePrice || 100).toLocaleString()}
-                        </Badge>
-                      )}
+                      <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-black self-start sm:self-auto">
+                        Live Feed Sync
+                      </Badge>
                     </div>
 
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold text-muted-foreground">
-                        <span>Bid Amount for {inspectedTeam.name}:</span>
-                        <span className="text-amber-400 font-mono">
-                          Wallet Left: {formatMoney(remainingPurse)}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <div className="relative flex-1 min-w-0">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-bold text-muted-foreground">
-                            ₹
+                    {highestBidderTeamId ? (
+                      <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                            Current Highest Bid
                           </span>
-                          <Input
-                            type="number"
-                            value={ownerBidAmount}
-                            onChange={(e) => setOwnerBidAmount(Number(e.target.value) || 0)}
-                            className="pl-8 text-base sm:text-lg font-black h-11 bg-white/[0.04] border-white/10 rounded-xl"
-                            min={player.basePrice || 100}
-                            step={50}
-                          />
+                          <span className="text-xl sm:text-2xl font-black font-mono text-amber-300">
+                            {formatMoney(currentBid || player.basePrice || 100)}
+                          </span>
                         </div>
-
-                        {/* Quick Increment Buttons */}
-                        <div className="grid grid-cols-4 sm:flex gap-1.5">
-                          {[50, 100, 250, 500].map((inc) => (
-                            <Button
-                              key={inc}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-11 px-2.5 font-bold text-xs rounded-xl touch-manipulation hover:bg-amber-500/15 hover:border-amber-500/40"
-                              onClick={() => setOwnerBidAmount((prev) => Math.max(prev, currentBid || player.basePrice || 100) + inc)}
-                            >
-                              +{inc}
-                            </Button>
-                          ))}
+                        <div className="text-right">
+                          <Badge className="bg-amber-500 text-slate-950 font-black text-xs gap-1.5 px-2.5 py-1">
+                            <Crown className="w-3.5 h-3.5" />
+                            {teams.find((t) => t.id === highestBidderTeamId)?.name || 'Franchise'}
+                          </Badge>
+                          <span className="text-[10px] text-emerald-400 font-bold block mt-1">
+                            Leading Bidder
+                          </span>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Warnings */}
-                    {currentSquadCount >= maxSquadSize && (
-                      <div className="flex items-center gap-1.5 text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2.5 rounded-xl font-bold">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>Squad full: {inspectedTeam.name} has reached the max limit ({currentSquadCount}/{maxSquadSize}).</span>
-                      </div>
-                    )}
-                    {ownerBidAmount > remainingPurse && (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl font-bold">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>Purse deficit: {inspectedTeam.name} only has {formatMoney(remainingPurse)} available.</span>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                            Opening Base Price
+                          </span>
+                          <span className="text-lg font-black font-mono text-foreground">
+                            {formatMoney(player.basePrice || 100)}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-amber-400 font-semibold flex items-center gap-1.5">
+                          <Gavel className="w-3.5 h-3.5 animate-pulse" />
+                          {isSold ? 'Auction Concluded' : isUnsold ? 'Candidate Passed' : 'Awaiting Auctioneer Call'}
+                        </span>
                       </div>
                     )}
 
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                      <Button
-                        type="button"
-                        size="lg"
-                        disabled={currentSquadCount >= maxSquadSize || ownerBidAmount > remainingPurse}
-                        onClick={handleOwnerPlaceBid}
-                        className="min-h-[46px] h-auto py-2.5 px-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs sm:text-sm gap-2 rounded-xl shadow-md disabled:opacity-50 touch-manipulation"
-                      >
-                        <Gavel className="w-4 h-4 shrink-0" />
-                        <span>Place Bid for {inspectedTeam.name} ({formatMoney(ownerBidAmount)})</span>
-                      </Button>
-
-                      <Button
-                        type="button"
-                        size="lg"
-                        disabled={currentSquadCount >= maxSquadSize || ownerBidAmount > remainingPurse}
-                        onClick={handleOwnerBuyPlayer}
-                        className="min-h-[46px] h-auto py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-black text-xs sm:text-sm gap-2 rounded-xl shadow-md disabled:opacity-50 touch-manipulation"
-                      >
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
-                        <span>Buy Player for {inspectedTeam.name} ({formatMoney(ownerBidAmount)})</span>
-                      </Button>
+                    <div className="p-2.5 rounded-xl bg-amber-500/[0.04] border border-amber-500/15 text-[11px] text-muted-foreground flex items-center gap-2">
+                      <Radio className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>
+                        The live auction is conducted exclusively by the Administrator. Real-time bids, sales, and franchise purses update automatically on your screen.
+                      </span>
                     </div>
                   </div>
                 )}

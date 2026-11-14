@@ -120,7 +120,9 @@ export default function Auction() {
                 </Badge>
               </h1>
               <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                Category bidding • Player spotlight • Team purse budgets
+                {isAdmin
+                  ? 'Admin Auction Console • Candidate spotlight • Hammer controls & purses'
+                  : 'Live Auction Broadcast • Real-time stage sync • Franchise purses & squads'}
               </p>
             </div>
           </div>
@@ -296,20 +298,19 @@ export default function Auction() {
               teams={teams}
               isAdmin={isAdmin}
               tournamentId={activeTournamentId}
-              onAddPlayer={addPlayerToAuction}
-              onResetAuction={handleResetAuctionData}
-              onNext={() => nextPlayer('next')}
-              onPrev={() => nextPlayer('prev')}
-              onSpotlightPlayer={spotlightPlayer}
-              onPlaceBid={placeBid}
+              onAddPlayer={isAdmin ? addPlayerToAuction : undefined}
+              onResetAuction={isAdmin ? handleResetAuctionData : undefined}
+              onNext={isAdmin ? () => nextPlayer('next') : undefined}
+              onPrev={isAdmin ? () => nextPlayer('prev') : undefined}
+              onSpotlightPlayer={isAdmin ? spotlightPlayer : undefined}
               currentBid={auctionState?.currentBid}
               highestBidderTeamId={auctionState?.highestBidderTeamId}
-              onDecideSold={adminDecideSold}
-              onDecideUnsold={adminDecideUnsold}
-              onRevert={revertPlayerStatus}
+              onDecideSold={isAdmin ? adminDecideSold : undefined}
+              onDecideUnsold={isAdmin ? adminDecideUnsold : undefined}
+              onRevert={isAdmin ? revertPlayerStatus : undefined}
               salesHistory={salesHistory}
-              autoAdvanceCountdown={autoAdvanceCountdown}
-              onCancelAutoAdvance={cancelAutoAdvance}
+              autoAdvanceCountdown={isAdmin ? autoAdvanceCountdown : null}
+              onCancelAutoAdvance={isAdmin ? cancelAutoAdvance : undefined}
             />
 
             {/* Category Players Bar Below Spotlight for Quick Navigation */}
@@ -322,8 +323,9 @@ export default function Auction() {
                 teams={teams}
                 selectedCategory={selectedCategory}
                 selectedPlayerId={currentPlayer?.id}
+                isAdmin={isAdmin}
                 onSelectCategory={setSelectedCategory}
-                onSelectPlayer={(p) => spotlightPlayer(p)}
+                onSelectPlayer={isAdmin ? (p) => spotlightPlayer(p) : undefined}
               />
             </div>
           </TabsContent>
@@ -335,11 +337,12 @@ export default function Auction() {
               teams={teams}
               selectedCategory={selectedCategory}
               selectedPlayerId={currentPlayer?.id}
+              isAdmin={isAdmin}
               onSelectCategory={setSelectedCategory}
-              onSelectPlayer={(p) => {
+              onSelectPlayer={isAdmin ? (p) => {
                 spotlightPlayer(p);
                 setActiveTab('spotlight');
-              }}
+              } : undefined}
             />
           </TabsContent>
 

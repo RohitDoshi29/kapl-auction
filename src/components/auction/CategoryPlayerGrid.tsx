@@ -7,15 +7,25 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { CheckCircle2, XCircle, Search, Filter, Sparkles, Gavel, User } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, Filter, Sparkles, Gavel, User, Eye, Radio, Shield } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { TeamBadge } from '@/components/cricket/TeamBadge';
 
 interface CategoryPlayerGridProps {
   players: PlayerRecord[];
   teams: Team[];
   selectedCategory: PlayerRole | 'all';
   selectedPlayerId?: string;
+  isAdmin?: boolean;
   onSelectCategory: (role: PlayerRole | 'all') => void;
-  onSelectPlayer: (player: PlayerRecord) => void;
+  onSelectPlayer?: (player: PlayerRecord) => void;
 }
 
 export function CategoryPlayerGrid({
@@ -23,11 +33,13 @@ export function CategoryPlayerGrid({
   teams = [],
   selectedCategory,
   selectedPlayerId,
+  isAdmin = false,
   onSelectCategory,
   onSelectPlayer,
 }: CategoryPlayerGridProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'sold' | 'unsold'>('all');
+  const [previewPlayer, setPreviewPlayer] = useState<PlayerRecord | null>(null);
 
   // Filter players by selected category, status, and search query
   const filteredPlayers = useMemo(() => {
@@ -57,6 +69,18 @@ export function CategoryPlayerGrid({
   }, [players, selectedCategory, statusFilter, searchQuery, teams]);
 
   const activeCategoryInfo = (AUCTION_CATEGORIES || []).find((c) => c.id === selectedCategory) || AUCTION_CATEGORIES[0];
+
+  const handlePlayerCardClick = (player: PlayerRecord) => {
+    if (isAdmin && onSelectPlayer) {
+      onSelectPlayer(player);
+    } else {
+      setPreviewPlayer(player);
+    }
+  };
+
+  const previewAssignedTeam = previewPlayer
+    ? (teams || []).find((t) => t.id === previewPlayer.teamId)
+    : null;
 
   return (
     <div className="space-y-4">
@@ -171,7 +195,8 @@ export function CategoryPlayerGrid({
                 return (
                   <div
                     key={player.id}
-                    onClick={() => onSelectPlayer(player)}
+                    onClick={() => handlePlayerCardClick(player)}
+                    title={isAdmin ? 'Click to spotlight candidate on live stage' : 'Click to view player profile'}
                     className={`cursor-pointer p-3 rounded-2xl border flex items-center justify-between gap-3 transition-all duration-200 ${
                       isSelected
                         ? 'border-amber-400 bg-amber-500/15 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/15 scale-[1.01]'
@@ -225,7 +250,7 @@ export function CategoryPlayerGrid({
                       ) : isUnsold ? (
                         <XCircle className="w-5 h-5 text-destructive" />
                       ) : isSelected ? (
-                        <Badge className="bg-amber-500 text-slate-950 text-[10px] font-black tracking-wider">
+                        <Badge className="bg-amber-500 text-slate-950 text-[10px] font-black tracking-wider animate-pulse">
                           LIVE
                         </Badge>
                       ) : (
@@ -241,6 +266,133 @@ export function CategoryPlayerGrid({
           )}
         </CardContent>
       </Card>
+
+      {/* SPECTATOR PLAYER DETAILS PREVIEW MODAL */}
+      <Dialog open={!!previewPlayer} onOpenChange={(open) => !open && setPreviewPlayer(null)}>
+        <DialogContent className="sm:max-w-md bg-card/95 border-white/10 backdrop-blur-xl">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Badge variant="outline" className="border-amber-500/30 text-amber-400 text-xs">
+                Candidate Profile
+              </Badge>
+              {previewPlayer?.id === selectedPlayerId && (
+                <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-black gap-1">
+                  <Radio className="w-3 h-3 animate-pulse" /> Live on Stage
+                </Badge>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3.5 pt-1">
+              <Avatar className="w-16 h-16 border-2 border-amber-400/50 shadow-md">
+                <AvatarImage src={previewPlayer?.photoUrl || undefined} alt={previewPlayer?.name} />
+                <AvatarFallback className="bg-amber-500/20 text-amber-300 font-black text-xl">
+                  {(previewPlayer?.name || 'P').slice(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <DialogTitle className="text-xl font-black text-foreground flex items-center gap-2">
+                  <span>{previewPlayer?.name}</span>
+                  {previewPlayer?.jerseyNumber && (
+                    <span className="text-xs font-mono text-muted-foreground">
+                      #{previewPlayer.jerseyNumber}
+                    </span>
+                  )}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-amber-400 font-bold capitalize mt-0.5">
+                  {formatPlayerRole(previewPlayer?.role || 'all_rounder')}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {previewPlayer && (
+            <div className="space-y-3.5 py-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 bg-white/[0.03] p-3 rounded-2xl border border-white/5">
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                    Batting Style
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    🏏 {previewPlayer.battingStyle || 'Right-hand bat'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                    Bowling Style
+                  </span>
+                  <span className="font-semibold text-foreground">
+                    ⚡ {previewPlayer.bowlingStyle || 'Right-arm medium'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.03] border border-white/5">
+                <div>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                    Base Auction Value
+                  </span>
+                  <span className="font-mono font-black text-amber-400 text-base">
+                    {formatMoney(previewPlayer.basePrice)}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">
+                    Auction Status
+                  </span>
+                  <span className="font-bold capitalize text-foreground">
+                    {previewPlayer.auctionStatus === 'sold' ? (
+                      <span className="text-emerald-400 font-black">Sold</span>
+                    ) : previewPlayer.auctionStatus === 'unsold' ? (
+                      <span className="text-destructive font-bold">Unsold</span>
+                    ) : (
+                      <span className="text-amber-400 font-bold">Pending Auction</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {previewPlayer.auctionStatus === 'sold' && previewAssignedTeam && (
+                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <TeamBadge team={previewAssignedTeam} size="sm" showName={false} />
+                    <div>
+                      <span className="text-[10px] text-emerald-300 uppercase font-bold block">
+                        Winning Franchise
+                      </span>
+                      <span className="font-black text-sm text-foreground">
+                        {previewAssignedTeam.name}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-emerald-300 uppercase font-bold block">
+                      Draft Price
+                    </span>
+                    <span className="font-mono font-black text-emerald-400 text-sm">
+                      {formatMoney(previewPlayer.soldPrice || previewPlayer.basePrice)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="pt-2 sm:justify-between flex-row">
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1.5 self-center">
+              <Eye className="w-3.5 h-3.5 text-amber-400" /> Spectator Read-Only View
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPreviewPlayer(null)}
+              className="text-xs font-bold"
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

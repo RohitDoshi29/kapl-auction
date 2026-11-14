@@ -12,6 +12,7 @@ import { Users, Wallet, Target, TrendingUp, Crown, BarChart3, Activity, Zap, Pie
 import { toast } from 'sonner';
 import { SinglePlayerAuctionStage } from '@/components/auction/SinglePlayerAuctionStage';
 import { CategoryPlayerGrid } from '@/components/auction/CategoryPlayerGrid';
+import { OwnerAnalyticsHub } from '@/components/owner/OwnerAnalyticsHub';
 
 interface TeamData {
   id: string;
@@ -41,7 +42,7 @@ interface TeamStats {
 }
 
 export default function OwnerDashboard() {
-  const { isOwner, user, profile } = useAuth();
+  const { isOwner, user, profile, isAdmin } = useAuth();
   const { activeTournamentId } = useTournament();
   const navigate = useNavigate();
   const {
@@ -51,17 +52,14 @@ export default function OwnerDashboard() {
     playerPool,
     selectedCategory,
     setSelectedCategory,
-    spotlightPlayer,
-    nextPlayer,
-    placeBid,
-    adminDecideSold,
-    adminDecideUnsold,
-    revertPlayerStatus,
     auctionState,
   } = useAuction(activeTournamentId || 'kapl-3-mens');
 
   const [myTeam, setMyTeam] = useState<TeamData | null>(null);
   const [otherTeams, setOtherTeams] = useState<TeamStats[]>([]);
+  const [availableTeams, setAvailableTeams] = useState<any[]>([]);
+  const [selectedAdminTeamId, setSelectedAdminTeamId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<string>('analytics');
   const [isLoading, setIsLoading] = useState(true);
   const [myStats, setMyStats] = useState({
     totalPlayers: 0,
@@ -74,13 +72,13 @@ export default function OwnerDashboard() {
   });
 
   useEffect(() => {
-    if (!isOwner) {
+    if (!isOwner && !isAdmin) {
       navigate('/');
-      toast.error('Only owners can access this page');
+      toast.error('Only franchise owners or administrators can access this page');
     } else {
       fetchDashboardData();
     }
-  }, [isOwner, activeTournamentId, user, playerPool]);
+  }, [isOwner, isAdmin, activeTournamentId, user, playerPool, selectedAdminTeamId]);
 
   const fetchDashboardData = async () => {
     if (!activeTournamentId || !user?.email) return;
@@ -95,9 +93,16 @@ export default function OwnerDashboard() {
         .select('*')
         .eq('tournament_id', activeTournamentId);
 
-      const myTeamData = (allTeamsData || []).find(
+      setAvailableTeams(allTeamsData || []);
+
+      let myTeamData = (allTeamsData || []).find(
         (t) => (t.owner_email && t.owner_email.toLowerCase().trim() === cleanEmail) || t.owner_user_id === user.id
       ) || null;
+
+      // If Admin visits without a designated team, inspect the selected or first franchise
+      if (!myTeamData && isAdmin && allTeamsData && allTeamsData.length > 0) {
+        myTeamData = allTeamsData.find((t) => t.id === selectedAdminTeamId) || allTeamsData[0];
+      }
 
       if (myTeamData) {
         // Fetch my team's players using granted safe columns
@@ -200,7 +205,7 @@ export default function OwnerDashboard() {
     setMyStats(stats);
   };
 
-  if (!isOwner) {
+  if (!isOwner && !isAdmin) {
     return null;
   }
 
@@ -222,21 +227,48 @@ export default function OwnerDashboard() {
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-black text-foreground">Owner Command Center</h1>
                 {myTeam && <Badge className="bg-amber-500 text-slate-950 font-black">{myTeam.name}</Badge>}
+                {isAdmin && <Badge variant="outline" className="text-amber-400 border-amber-500/40 text-[10px]">Admin View</Badge>}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Bid on live auction players, manage your franchise squad, and monitor competitor purse limits
+                Track live auction broadcast, inspect your franchise squad analytics, and monitor competitor purse limits
               </p>
             </div>
           </div>
 
-          {/* Quick Wallet Pill */}
-          {myTeam && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-mono text-xs font-bold">
-              <Wallet className="w-4 h-4 text-amber-400" />
-              <span>Wallet: ₹{myTeamRemainingPurse.toLocaleString()}</span>
-              <span className="text-muted-foreground">• Squad: {myStats.totalPlayers}/10</span>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Admin Franchise Inspector Selector */}
+            {isAdmin && availableTeams.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 rounded-xl px-2.5 py-1.5">
+                <span className="text-[11px] text-muted-foreground font-semibold">Inspect Team:</span>
+                <select
+                  value={myTeam?.id || ''}
+                  onChange={(e) => setSelectedAdminTeamId(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+                >
+                  {availableTeams.map((t) => (
+                    <option key={t.id} value={t.id} className="bg-slate-900 text-foreground">
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Quick Wallet Pill / Analytics Shortcut */}
+            {myTeam && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('analytics')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono text-xs font-bold transition-all cursor-pointer"
+                title="Open Spider & Slider Graphs Analytics"
+              >
+                <Wallet className="w-4 h-4 text-amber-400" />
+                <span>Wallet: ₹{myTeamRemainingPurse.toLocaleString()}</span>
+                <span className="text-muted-foreground">• Squad: {myStats.totalPlayers}/10</span>
+                <BarChart3 className="w-3.5 h-3.5 text-amber-400 ml-1" />
+              </button>
+            )}
+          </div>
         </div>
 
         {isLoading ? (
@@ -249,44 +281,50 @@ export default function OwnerDashboard() {
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="spotlight" className="w-full space-y-6">
-            <TabsList className="grid w-full max-w-2xl grid-cols-2 sm:grid-cols-4 h-auto p-1.5 bg-card/80 backdrop-blur-md border border-white/10 rounded-2xl gap-1">
-              <TabsTrigger value="spotlight" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+            <TabsList className="flex w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-w-3xl sm:grid sm:grid-cols-5 h-auto p-1.5 bg-card/80 backdrop-blur-md border border-white/10 rounded-2xl gap-1">
+              <TabsTrigger value="analytics" className="shrink-0 rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Analytics</span>
+              </TabsTrigger>
+              <TabsTrigger value="spotlight" className="shrink-0 rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
                 <Radio className="w-3.5 h-3.5" />
                 <span>Live Stage</span>
               </TabsTrigger>
-              <TabsTrigger value="players" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+              <TabsTrigger value="players" className="shrink-0 rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Player Pool</span>
               </TabsTrigger>
-              <TabsTrigger value="my-team" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+              <TabsTrigger value="my-team" className="shrink-0 rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
                 <Crown className="w-3.5 h-3.5" />
                 <span>My Squad ({myStats.totalPlayers})</span>
               </TabsTrigger>
-              <TabsTrigger value="competition" className="rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
-                <BarChart3 className="w-3.5 h-3.5" />
+              <TabsTrigger value="competition" className="shrink-0 rounded-xl py-2.5 font-bold text-xs gap-1.5 data-[state=active]:bg-amber-500 data-[state=active]:text-slate-950 touch-manipulation">
+                <TrendingUp className="w-3.5 h-3.5" />
                 <span>Competitors</span>
               </TabsTrigger>
             </TabsList>
 
-            {/* 1. SPOTLIGHT / LIVE AUCTION STAGE TAB */}
+            {/* 0. ANALYTICS & SPIDER GRAPHS TAB */}
+            <TabsContent value="analytics" className="space-y-6">
+              <OwnerAnalyticsHub
+                myTeam={myTeam}
+                otherTeams={otherTeams}
+                playerPool={playerPool}
+              />
+            </TabsContent>
+
+            {/* 1. SPOTLIGHT / LIVE AUCTION STAGE TAB (Read-only live broadcast for Franchise Owner) */}
             <TabsContent value="spotlight" className="space-y-6">
               {currentPlayer ? (
                 <SinglePlayerAuctionStage
                   player={currentPlayer}
                   playerPool={playerPool}
                   teams={auctionTeams}
-                  isAdmin={profile?.role === 'admin' || profile?.role === 'super_admin'}
+                  isAdmin={false}
                   tournamentId={activeTournamentId}
-                  onNext={() => nextPlayer('next')}
-                  onPrev={() => nextPlayer('prev')}
-                  onSpotlightPlayer={spotlightPlayer}
-                  onPlaceBid={placeBid}
                   currentBid={auctionState?.currentBid}
                   highestBidderTeamId={auctionState?.highestBidderTeamId}
-                  onDecideSold={adminDecideSold}
-                  onDecideUnsold={adminDecideUnsold}
-                  onRevert={revertPlayerStatus}
                   salesHistory={salesHistory}
                 />
               ) : (
@@ -297,7 +335,7 @@ export default function OwnerDashboard() {
                     </div>
                     <p className="font-bold text-lg text-foreground">Waiting for Auction Spotlight</p>
                     <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                      No candidate is currently on the stage. Switch to the Player Pool tab to browse registered candidates and spotlight one.
+                      No candidate is currently on the stage. Switch to the Player Pool tab to browse registered candidates and view their details.
                     </p>
                   </CardContent>
                 </Card>
@@ -313,7 +351,11 @@ export default function OwnerDashboard() {
                   </div>
                   <div>
                     <h3 className="font-black text-lg text-foreground">Auction Player Pool</h3>
-                    <p className="text-xs text-muted-foreground">Browse all registered players, filter by role, and click any player to spotlight</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isAdmin
+                        ? 'Browse all registered players, filter by role, and click any player to spotlight'
+                        : 'Browse all registered candidates, filter by role, and click any player to inspect profile'}
+                    </p>
                   </div>
                 </div>
                 <Badge className="bg-blue-500/20 text-blue-300 font-mono text-xs px-2.5 py-1">
@@ -326,11 +368,9 @@ export default function OwnerDashboard() {
                 teams={auctionTeams}
                 selectedCategory={selectedCategory}
                 selectedPlayerId={currentPlayer?.id}
+                isAdmin={false}
                 onSelectCategory={setSelectedCategory}
-                onSelectPlayer={(p) => {
-                  spotlightPlayer(p);
-                  toast.success(`Spotlighted ${p.name} on the auction stage`);
-                }}
+                onSelectPlayer={undefined}
               />
             </TabsContent>
 
@@ -462,18 +502,27 @@ export default function OwnerDashboard() {
               {/* Acquired Players Table */}
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <CardTitle>Drafted Roster ({myTeam.players.length})</CardTitle>
                       <CardDescription>Players acquired by your franchise</CardDescription>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setActiveTab('analytics')}
+                      className="border-amber-500/35 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-xs gap-1.5 self-start sm:self-auto"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
+                      Spider &amp; Slider Graphs
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {myTeam.players.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground space-y-2">
                       <p className="font-semibold text-foreground">No players drafted yet</p>
-                      <p className="text-xs">Head to the Live Stage tab during the auction to place bids and acquire candidates for your team.</p>
+                      <p className="text-xs">Watch the live auction broadcast on the Live Stage tab as candidates are auctioned by the administrator.</p>
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
@@ -519,11 +568,24 @@ export default function OwnerDashboard() {
             <TabsContent value="competition" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-blue-400" />
-                    Franchise Spending & Competitor Intelligence
-                  </CardTitle>
-                  <CardDescription>Real-time squad count and remaining purse across all rival teams</CardDescription>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-blue-400" />
+                        Franchise Spending &amp; Competitor Intelligence
+                      </CardTitle>
+                      <CardDescription>Real-time squad count and remaining purse across all rival teams</CardDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setActiveTab('analytics')}
+                      className="border-blue-500/35 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 font-bold text-xs gap-1.5 self-start sm:self-auto"
+                    >
+                      <BarChart3 className="w-3.5 h-3.5 text-blue-400" />
+                      View Purchasing Power Bars
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">

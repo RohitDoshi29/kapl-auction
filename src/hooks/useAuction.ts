@@ -1135,8 +1135,12 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     };
   }, [auctionState?.timerEndsAt, auctionState?.status]);
 
-  // Spotlight a specific player on the auction podium (broadcast to all users)
+  // Spotlight a specific player on the auction podium (broadcast to all users - Admin only)
   const spotlightPlayer = async (player: PlayerRecord) => {
+    if (!isAdmin) {
+      console.warn('Unauthorized: Non-admin attempted to spotlight player');
+      return;
+    }
     cancelAutoAdvance();
     setCurrentPlayer(player);
     setSelectedCategory((prev) => (prev === 'all' ? 'all' : player.role));
@@ -1177,8 +1181,9 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     }
   };
 
-  // Navigate to Next Player in Category
+  // Navigate to Next Player in Category (Admin only)
   const nextPlayer = (direction: 'next' | 'prev' = 'next') => {
+    if (!isAdmin) return;
     const categoryPlayers = selectedCategory === 'all'
       ? playerPool
       : playerPool.filter((p) => p.role === selectedCategory);
@@ -1199,9 +1204,13 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     }
   };
 
-  // OWNER / ADMIN ACTION: Place Live Bid
+  // ADMIN ACTION: Place Live Bid (Only Admin is permitted to conduct the auction)
   const placeBid = useCallback(
     async (teamId: string, bidAmount: number) => {
+      if (!isAdmin) {
+        toast.error('Unauthorized: Only administrators can place bids in the live auction.');
+        return;
+      }
       const targetPlayer = currentPlayer;
       if (!targetPlayer) {
         toast.error('No player currently selected on the auction stage');
@@ -1307,8 +1316,12 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     [currentPlayer, teams, tournamentId, user, auctionState, broadcastAuctionEvent]
   );
 
-  // ADMIN / FRANCHISE OWNER ACTION: Decide SOLD (Select Team & Price)
+  // ADMIN ACTION: Decide SOLD (Select Team & Price)
   const adminDecideSold = async (playerId: string, teamId: string, soldPrice: number) => {
+    if (!isAdmin) {
+      toast.error('Unauthorized: Only administrators can finalize player sales.');
+      return;
+    }
     const targetPlayer = (playerPool || []).find((p) => p.id === playerId) || currentPlayer;
     if (!targetPlayer) {
       toast.error('No player selected');
@@ -1512,9 +1525,9 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     playAuctionGavel();
     triggerQuickBurst();
 
-    // Auto-advance to next pending player with 3.5s celebration window
+    // Auto-advance to next pending player with 3.5s celebration window (Admin only)
     const remainingPending = updatedPool.filter((p) => (selectedCategory === 'all' || p.role === selectedCategory) && p.auctionStatus === 'pending' && p.id !== targetPlayer.id);
-    if (remainingPending.length > 0 && isAutoAdvanceEnabled) {
+    if (isAdmin && remainingPending.length > 0 && isAutoAdvanceEnabled) {
       cancelAutoAdvance();
       let secondsLeft = 3;
       setAutoAdvanceCountdown(secondsLeft);
@@ -1536,6 +1549,10 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
   // ADMIN ACTION: Decide UNSOLD
   const adminDecideUnsold = async (playerId: string) => {
+    if (!isAdmin) {
+      toast.error('Unauthorized: Only administrators can mark players as unsold.');
+      return;
+    }
     const targetPlayer = (playerPool || []).find((p) => p.id === playerId) || currentPlayer;
     if (!targetPlayer) return;
 
@@ -1572,9 +1589,9 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
     toast.warning(`❌ ${targetPlayer.name} marked UNSOLD.`);
 
-    // Auto-advance to next pending player with 3.5s window
+    // Auto-advance to next pending player with 3.5s window (Admin only)
     const remainingPending = updatedPool.filter((p) => (selectedCategory === 'all' || p.role === selectedCategory) && p.auctionStatus === 'pending' && p.id !== targetPlayer.id);
-    if (remainingPending.length > 0 && isAutoAdvanceEnabled) {
+    if (isAdmin && remainingPending.length > 0 && isAutoAdvanceEnabled) {
       cancelAutoAdvance();
       let secondsLeft = 3;
       setAutoAdvanceCountdown(secondsLeft);
@@ -1644,6 +1661,10 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
   // ADMIN ACTION: Revert / Re-auction a player
   const revertPlayerStatus = async (playerId: string) => {
+    if (!isAdmin) {
+      toast.error('Unauthorized: Only administrators can revert player status.');
+      return;
+    }
     const targetPlayer = (playerPool || []).find((p) => p.id === playerId);
     if (!targetPlayer) return;
 
@@ -1750,6 +1771,10 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
 
   // ADMIN ACTION: Start Accelerated Round (Re-auction all unsold players)
   const startAcceleratedUnsoldRound = async () => {
+    if (!isAdmin) {
+      toast.error('Unauthorized: Only administrators can start the accelerated round.');
+      return;
+    }
     cancelAutoAdvance();
     const unsoldPlayers = playerPool.filter((p) => p.auctionStatus === 'unsold');
     if (unsoldPlayers.length === 0) {
@@ -1794,6 +1819,10 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
   };
 
   const removePlayerFromAuction = useCallback(async (playerId: string) => {
+    if (!isAdmin) {
+      toast.error('Unauthorized: Only administrators can remove players from the auction.');
+      return;
+    }
     const remainingPool = playerPool.filter((p) => p.id !== playerId);
     const nextSpotlight =
       currentPlayer?.id === playerId
@@ -2141,6 +2170,9 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
     setIsAutoAdvanceEnabled,
     salesHistory,
     initializeAuctionData: async () => {
+      if (!isAdmin) {
+        return { success: false, message: 'Unauthorized: Only administrators can reset the auction.' };
+      }
       cancelAutoAdvance();
       const resetPlayers: PlayerRecord[] = playerPool.map((p) => ({
         ...p,
@@ -2226,6 +2258,9 @@ export function useAuction(initialTournamentId: string = 'kapl-3-mens') {
       };
     },
     clearAllPlayers: async () => {
+      if (!isAdmin) {
+        return { success: false, message: 'Unauthorized: Only administrators can clear players from the auction.' };
+      }
       cancelAutoAdvance();
       const baseTeams = teams.length > 0 ? teams : (tournamentId === 'kapl-3-womens' ? DEFAULT_WOMENS_TEAMS : DEFAULT_TEAMS);
       const freshTeams: Team[] = baseTeams.map((t) => ({
